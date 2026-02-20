@@ -2,7 +2,6 @@
 
 const GitHubAPI = {
     
-    // Base Headers with Auth
     getHeaders() {
         return {
             'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
@@ -11,14 +10,16 @@ const GitHubAPI = {
         };
     },
 
-    // Fetch a Gist by ID
     async getGist(gistId) {
         try {
             const response = await fetch(`https://api.github.com/gists/${gistId}`, {
                 headers: this.getHeaders()
             });
             
-            if (!response.ok) throw new Error(`Gist fetch failed: ${response.status}`);
+            if (!response.ok) {
+                console.error(`Gist fetch failed: ${response.status}`, await response.text());
+                throw new Error(`Gist fetch failed: ${response.status}`);
+            }
             return await response.json();
         } catch (e) {
             console.error("API Get Error:", e);
@@ -26,34 +27,48 @@ const GitHubAPI = {
         }
     },
 
-    // Create a New Gist
     async createGist(filename, content, description = "Gist Chat Data") {
         try {
+            console.log("Creating Gist...", filename, content);
+            
+            const body = JSON.stringify({
+                description: description,
+                public: true,
+                files: {
+                    [filename]: {
+                        content: JSON.stringify(content)
+                    }
+                }
+            });
+            
+            console.log("Request body:", body);
+            
             const response = await fetch('https://api.github.com/gists', {
                 method: 'POST',
                 headers: this.getHeaders(),
-                body: JSON.stringify({
-                    description: description,
-                    public: true,
-                    files: {
-                        [filename]: {
-                            content: JSON.stringify(content)
-                        }
-                    }
-                })
+                body: body
             });
             
-            if (!response.ok) throw new Error(`Gist create failed: ${response.status}`);
-            return await response.json();
+            console.log("Response status:", response.status);
+            const responseText = await response.text();
+            console.log("Response:", responseText);
+            
+            if (!response.ok) {
+                throw new Error(`Gist create failed: ${response.status} - ${responseText}`);
+            }
+            
+            return JSON.parse(responseText);
         } catch (e) {
             console.error("API Create Error:", e);
+            alert("Create Error: " + e.message); // Show error to user
             return null;
         }
     },
 
-    // Update Existing Gist (PATCH)
     async updateGist(gistId, filename, content, sha) {
         try {
+            console.log("Updating Gist...", gistId, sha);
+            
             const response = await fetch(`https://api.github.com/gists/${gistId}`, {
                 method: 'PATCH',
                 headers: this.getHeaders(),
@@ -67,7 +82,13 @@ const GitHubAPI = {
                 })
             });
             
-            if (!response.ok) throw new Error(`Gist update failed: ${response.status}`);
+            console.log("Update Response:", response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Gist update failed: ${response.status}`, errorText);
+                throw new Error(`Gist update failed: ${response.status}`);
+            }
             return await response.json();
         } catch (e) {
             console.error("API Update Error:", e);
@@ -75,7 +96,6 @@ const GitHubAPI = {
         }
     },
 
-    // Read File Content from Gist Object
     parseGistFile(gistData, filename) {
         if (!gistData || !gistData.files || !gistData.files[filename]) {
             return null;
@@ -84,7 +104,6 @@ const GitHubAPI = {
         const sha = gistData.files[filename].sha;
         
         try {
-            // ✅ FIXED: Added 'data:' key
             return {
                 data: JSON.parse(rawContent),
                 sha: sha
@@ -97,3 +116,5 @@ const GitHubAPI = {
 };
 
 console.log("GitHubAPI Loaded");
+console.log("Token configured:", CONFIG.GITHUB_TOKEN ? 'Yes' : 'No');
+console.log("Directory ID:", CONFIG.DIRECTORY_GIST_ID || 'Not set');
