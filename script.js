@@ -321,7 +321,7 @@ function createSlotElement(room, type, index) {
     return slot;
 }
 
-function promptNewSlot(type) {
+async function promptNewSlot(type) {
     const max = type === 'dm' ? CONFIG.MAX_DM_SLOTS : CONFIG.MAX_GC_SLOTS;
     const active = JSON.parse(localStorage.getItem(
         type === 'dm' ? CONFIG.LS_KEYS.ACTIVE_DMS : CONFIG.LS_KEYS.ACTIVE_GCS
@@ -333,13 +333,67 @@ function promptNewSlot(type) {
     }
     
     const searchId = prompt(`Enter User ID to ${type === 'dm' ? 'chat with' : 'invite'}:`);
-    if (searchId) {
-        active.push({ id: `room_${Date.now()}`, name: searchId.toUpperCase(), type });
+    if (!searchId) return;
+    
+    const targetUserId = searchId.trim().toUpperCase();
+    
+    // Validate ID format
+    if (!/^[A-Z][0-9]+$/.test(targetUserId)) {
+        alert("Invalid User ID format. Must be Letter+Number (e.g. A1)");
+        return;
+    }
+    
+    // Can't chat with yourself
+    if (targetUserId === AppState.userId) {
+        alert("You can't chat with yourself!");
+        return;
+    }
+    
+    // Check if already in slots
+    const exists = active.find(slot => slot.name === targetUserId);
+    if (exists) {
+        alert("Already in your chat list!");
+        return;
+    }
+    
+    // Show loading
+    alert("Searching for user and creating room...");
+    
+    try {
+        // Search for the user
+        const targetProfile = await DB.searchUser(targetUserId);
+        
+        if (!targetProfile) {
+            alert(`User ${targetUserId} not found!`);
+            return;
+        }
+        
+        // Create room in Supabase
+        const room = await DB.createRoom(type, [targetProfile.id]);
+        
+        // Add to local storage
+        const roomData = {
+            id: room.id,
+            name: targetUserId,
+            type: type,
+            participantId: targetProfile.id
+        };
+        
+        active.push(roomData);
         localStorage.setItem(
             type === 'dm' ? CONFIG.LS_KEYS.ACTIVE_DMS : CONFIG.LS_KEYS.ACTIVE_GCS,
             JSON.stringify(active)
         );
+        
+        // Refresh slots and open chat
         renderSlots();
+        loadRoom(roomData);
+        
+        alert(`✅ Chat created with ${targetUserId}!`);
+        
+    } catch (error) {
+        console.error("Failed to create room:", error);
+        alert("Failed to create chat: " + error.message);
     }
     
     toggleSidebar(false);
