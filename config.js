@@ -1,6 +1,6 @@
 const CONFIG = {
     // Put your Burner Account PAT here later
-    GITHUB_TOKEN: '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', 
+    GITHUB_TOKEN: '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', 
     
     // Burner Account Username
     GITHUB_USERNAME: 'gist-chat-bot', 
