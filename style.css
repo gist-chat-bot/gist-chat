@@ -17,407 +17,152 @@ html, body {
     touch-action: manipulation;
 }
 
-/* Header */
 #app-header {
     display: flex; justify-content: space-between; padding: 10px;
     background: #000; border-bottom: 1px solid #333;
-    position: relative;
-    z-index: 10;
-    align-items: center;
+    position: relative; z-index: 10; align-items: center;
 }
 .status-indicator { color: var(--accent); font-size: 0.8rem; }
 .user-id-display { font-size: 0.9rem; font-weight: bold; }
 
-/* Menu Toggle (Mobile) */
 .menu-toggle {
-    display: none;
-    background: none;
-    border: none;
-    color: var(--text-color);
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 5px;
+    display: none; background: none; border: none;
+    color: var(--text-color); font-size: 1.5rem; cursor: pointer; padding: 5px;
 }
 
-/* Layout */
-.container { 
-    display: flex; 
-    height: calc(100vh - 50px);
-    position: relative;
-}
+.container { display: flex; height: calc(100vh - 50px); position: relative; }
 
-/* Sidebar */
 .sidebar {
-    width: 250px; 
-    background: var(--sidebar-bg);
-    padding: 10px; 
-    border-right: 1px solid #333;
-    display: flex; 
-    flex-direction: column; 
-    gap: 20px;
-    transition: transform 0.3s ease;
-    z-index: 5;
+    width: 250px; background: var(--sidebar-bg);
+    padding: 10px; border-right: 1px solid #333;
+    display: flex; flex-direction: column; gap: 20px;
+    transition: transform 0.3s ease; z-index: 5;
 }
 
-.slot-section h3 {
-    font-size: 0.9rem;
-    color: #888;
-    margin-bottom: 5px;
-}
-
-.slots-grid { 
-    display: grid; 
-    grid-template-columns: 1fr 1fr; 
-    gap: 5px; 
-}
+.slot-section h3 { font-size: 0.9rem; color: #888; margin-bottom: 5px; }
+.slots-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 
 .slot-box {
-    background: #333; 
-    height: 50px; 
-    border-radius: 4px;
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    font-size: 0.8rem; 
-    cursor: pointer; 
-    border: 1px solid #444;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0 5px;
-    position: relative;
-    user-select: none;
+    background: #333; height: 50px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; cursor: pointer; border: 1px solid #444;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 0 5px; position: relative; user-select: none;
 }
 
-.slot-box.active { 
-    border-color: var(--accent); 
-    color: var(--accent); 
-}
+.slot-box.active { border-color: var(--accent); color: var(--accent); }
 
-/* Remove Indicator (X) */
 .slot-box.active::after {
-    content: "×";
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    background: var(--danger);
-    color: white;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
-    font-weight: bold;
+    content: "×"; position: absolute; top: -5px; right: -5px;
+    background: var(--danger); color: white; width: 18px; height: 18px;
+    border-radius: 50%; font-size: 0.8rem; display: flex;
+    align-items: center; justify-content: center; opacity: 0;
+    transition: opacity 0.2s; pointer-events: none; font-weight: bold;
 }
 
-.slot-box.active:active::after,
-.slot-box.active:hover::after {
-    opacity: 1;
-    pointer-events: auto;
-}
+.slot-box.active:active::after, .slot-box.active:hover::after { opacity: 1; pointer-events: auto; }
 
 .add-btn { 
-    width: 100%; 
-    padding: 8px; 
-    background: #333; 
-    color: #fff; 
-    border: none; 
-    cursor: pointer;
-    font-size: 1.2rem;
-    margin-top: 5px;
+    width: 100%; padding: 8px; background: #333; color: #fff; 
+    border: none; cursor: pointer; font-size: 1.2rem; margin-top: 5px; 
 }
+.add-btn:active { background: #444; }
 
-.add-btn:active {
-    background: #444;
-}
-
-/* Chat Area */
-.chat-area { 
-    flex: 1; 
-    display: flex; 
-    flex-direction: column; 
-    position: relative;
-    height: 100%;
-}
-
-.chat-header { 
-    padding: 10px; 
-    border-bottom: 1px solid #333; 
-    background: #1a1a1a;
-    font-weight: bold;
-}
+.chat-area { flex: 1; display: flex; flex-direction: column; position: relative; height: 100%; }
+.chat-header { padding: 10px; border-bottom: 1px solid #333; background: #1a1a1a; font-weight: bold; }
 
 .message-list {
-    flex: 1; 
-    overflow-y: auto; 
-    padding: 10px;
-    display: flex; 
-    flex-direction: column; 
-    gap: 10px;
-    scroll-behavior: smooth;
-    padding-bottom: 70px;
+    flex: 1; overflow-y: auto; padding: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+    scroll-behavior: smooth; padding-bottom: 70px;
 }
 
-/* Message Packet */
 .message-packet {
-    background: var(--packet-bg); 
-    border: 1px solid #444;
-    padding: 10px; 
-    border-radius: 4px; 
-    max-width: 85%;
-    word-wrap: break-word;
+    background: var(--packet-bg); border: 1px solid #444;
+    padding: 10px; border-radius: 4px; max-width: 85%; word-wrap: break-word;
 }
 
-.packet-header { 
-    font-size: 0.7rem; 
-    color: #888; 
-    margin-bottom: 6px; 
-    display: flex; 
-    justify-content: space-between; 
-}
+.packet-header { font-size: 0.7rem; color: #888; margin-bottom: 6px; display: flex; justify-content: space-between; }
+.packet-content { font-size: 0.9rem; line-height: 1.4; }
 
-.packet-content { 
-    font-size: 0.9rem; 
-    line-height: 1.4; 
-}
+.packet-content.blurred { filter: blur(6px); cursor: pointer; transition: 0.3s; user-select: none; }
+.packet-content.blurred:hover { filter: blur(0); }
 
-/* Blur Logic */
-.packet-content.blurred { 
-    filter: blur(6px); 
-    cursor: pointer; 
-    transition: 0.3s; 
-    user-select: none;
-}
-
-.packet-content.blurred:hover { 
-    filter: blur(0); 
-}
-
-/* Input Area */
 .input-area {
-    padding: 10px; 
-    background: #1a1a1a; 
-    border-top: 1px solid #333;
-    display: flex; 
-    gap: 10px; 
-    align-items: center;
-    flex-shrink: 0;
+    padding: 10px; background: #1a1a1a; border-top: 1px solid #333;
+    display: flex; gap: 10px; align-items: center; flex-shrink: 0;
 }
 
 #message-input {
-    flex: 1; 
-    padding: 12px; 
-    background: #333; 
-    border: none;
-    color: #fff; 
-    border-radius: 4px; 
-    outline: none;
-    font-size: 16px;
-    min-width: 0;
+    flex: 1; padding: 12px; background: #333; border: none;
+    color: #fff; border-radius: 4px; outline: none; font-size: 16px; min-width: 0;
 }
+#message-input:focus { background: #3a3a3a; }
+#message-input:disabled { opacity: 0.5; cursor: not-allowed; }
 
-#message-input:focus {
-    background: #3a3a3a;
-}
-
-#message-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Send Button with Ring */
 #send-btn {
-    width: 45px; 
-    height: 45px; 
-    border: none; 
-    background: none;
-    position: relative; 
-    cursor: pointer; 
-    color: var(--accent);
-    flex-shrink: 0;
+    width: 45px; height: 45px; border: none; background: none;
+    position: relative; cursor: pointer; color: var(--accent); flex-shrink: 0;
 }
+#send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-#send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+.circular-chart { width: 100%; height: 100%; transform: rotate(-90deg); }
+.circle-bg { fill: none; stroke: #333; stroke-width: 2.5; }
+.circle { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+.send-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.2rem; }
 
-.circular-chart { 
-    width: 100%; 
-    height: 100%; 
-    transform: rotate(-90deg); 
-}
-
-.circle-bg { 
-    fill: none; 
-    stroke: #333; 
-    stroke-width: 2.5; 
-}
-
-.circle { 
-    fill: none; 
-    stroke: var(--accent); 
-    stroke-width: 2.5; 
-    stroke-linecap: round; 
-}
-
-.send-icon { 
-    position: absolute; 
-    top: 50%; 
-    left: 50%; 
-    transform: translate(-50%, -50%); 
-    font-size: 1.2rem; 
-}
-
-/* Modal */
 .modal {
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%;
-    background: rgba(0,0,0,0.95); 
-    display: flex;
-    justify-content: center; 
-    align-items: center; 
-    z-index: 100;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.95); display: flex;
+    justify-content: center; align-items: center; z-index: 100;
 }
 
 .modal-content { 
-    background: #222; 
-    padding: 30px; 
-    border: 1px solid var(--accent); 
-    text-align: center;
-    width: 90%;
-    max-width: 350px;
-    border-radius: 8px;
+    background: #222; padding: 30px; border: 1px solid var(--accent); 
+    text-align: center; width: 90%; max-width: 350px; border-radius: 8px; 
 }
 
-.modal-content h2 {
-    margin-bottom: 20px;
-    color: var(--accent);
-}
+.modal-content h2 { margin-bottom: 20px; color: var(--accent); }
 
 .modal-content input { 
-    padding: 12px; 
-    margin: 15px 0; 
-    width: 100%;
-    background: #333;
-    border: 1px solid #444;
-    color: #fff;
-    border-radius: 4px;
-    font-size: 16px;
+    padding: 12px; margin: 10px 0; width: 100%;
+    background: #333; border: 1px solid #444; color: #fff;
+    border-radius: 4px; font-size: 16px; 
 }
-
-.modal-content input:focus {
-    border-color: var(--accent);
-    outline: none;
-}
+.modal-content input:focus { border-color: var(--accent); outline: none; }
 
 .modal-content button { 
-    padding: 12px 30px; 
-    background: var(--accent); 
-    border: none; 
-    cursor: pointer; 
-    font-weight: bold;
-    border-radius: 4px;
-    font-size: 1rem;
-    width: 100%;
+    padding: 12px 30px; background: var(--accent); border: none; 
+    cursor: pointer; font-weight: bold; border-radius: 4px;
+    font-size: 1rem; width: 100%; margin-top: 10px;
 }
+.modal-content button:active { opacity: 0.9; }
 
-.modal-content button:active {
-    opacity: 0.9;
-}
+.system-msg { text-align: center; color: #666; font-size: 0.8rem; padding: 20px; }
 
-/* System Message */
-.system-msg {
-    text-align: center;
-    color: #666;
-    font-size: 0.8rem;
-    padding: 20px;
-}
-
-/* Mobile Responsive */
 @media (max-width: 768px) {
-    .menu-toggle {
-        display: block;
-    }
-    
+    .menu-toggle { display: block; }
     .sidebar {
-        position: fixed;
-        left: 0;
-        top: 50px;
-        height: calc(100vh - 50px);
-        transform: translateX(-100%);
-        width: 280px;
+        position: fixed; left: 0; top: 50px; height: calc(100vh - 50px);
+        transform: translateX(-100%); width: 280px;
         box-shadow: 2px 0 10px rgba(0,0,0,0.5);
     }
-    
-    .sidebar.open {
-        transform: translateX(0);
-    }
-    
-    .container {
-        height: calc(100vh - 50px);
-    }
-    
-    .chat-header {
-        font-size: 0.95rem;
-    }
-    
-    .message-packet {
-        max-width: 90%;
-        padding: 8px;
-    }
-    
-    .packet-content {
-        font-size: 0.85rem;
-    }
-    
-    .input-area {
-        padding: 8px;
-    }
-    
-    #message-input {
-        padding: 10px;
-        font-size: 16px;
-    }
-    
-    .slot-box {
-        height: 45px;
-        font-size: 0.75rem;
-    }
+    .sidebar.open { transform: translateX(0); }
+    .container { height: calc(100vh - 50px); }
+    .chat-header { font-size: 0.95rem; }
+    .message-packet { max-width: 90%; padding: 8px; }
+    .packet-content { font-size: 0.85rem; }
+    .input-area { padding: 8px; }
+    #message-input { padding: 10px; font-size: 16px; }
+    .slot-box { height: 45px; font-size: 0.75rem; }
 }
 
-/* Overlay for mobile sidebar */
 .sidebar-overlay {
-    display: none;
-    position: fixed;
-    top: 50px;
-    left: 0;
-    width: 100%;
-    height: calc(100vh - 50px);
-    background: rgba(0,0,0,0.5);
-    z-index: 4;
+    display: none; position: fixed; top: 50px; left: 0;
+    width: 100%; height: calc(100vh - 50px);
+    background: rgba(0,0,0,0.5); z-index: 4;
 }
+.sidebar-overlay.show { display: block; }
 
-.sidebar-overlay.show {
-    display: block;
-}
-
-/* Prevent scroll bounce on iOS */
-body {
-    position: fixed;
-    width: 100%;
-    overflow: hidden;
-}
-
-/* Smooth animations */
-* {
-    -webkit-tap-highlight-color: transparent;
-}
+body { position: fixed; width: 100%; overflow: hidden; }
+* { -webkit-tap-highlight-color: transparent; }
