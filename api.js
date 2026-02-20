@@ -2,9 +2,9 @@
 
 const GitHubAPI = {
     
+    // ✅ No token in headers! Netlify adds it.
     getHeaders() {
         return {
-            'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github.v3+json',
             'Content-Type': 'application/json'
         };
@@ -12,12 +12,12 @@ const GitHubAPI = {
 
     async getGist(gistId) {
         try {
-            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            const response = await fetch(`${CONFIG.API_BASE}/${gistId}`, {
                 headers: this.getHeaders()
             });
             
             if (!response.ok) {
-                console.error(`Gist fetch failed: ${response.status}`, await response.text());
+                console.error(`Gist fetch failed: ${response.status}`);
                 throw new Error(`Gist fetch failed: ${response.status}`);
             }
             return await response.json();
@@ -29,7 +29,7 @@ const GitHubAPI = {
 
     async createGist(filename, content, description = "Gist Chat Data") {
         try {
-            console.log("Creating Gist...", filename, content);
+            console.log("Creating Gist...", filename);
             
             const body = JSON.stringify({
                 description: description,
@@ -41,35 +41,32 @@ const GitHubAPI = {
                 }
             });
             
-            console.log("Request body:", body);
-            
-            const response = await fetch('https://api.github.com/gists', {
+            const response = await fetch(`${CONFIG.API_BASE}`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body: body
             });
             
             console.log("Response status:", response.status);
-            const responseText = await response.text();
-            console.log("Response:", responseText);
             
             if (!response.ok) {
-                throw new Error(`Gist create failed: ${response.status} - ${responseText}`);
+                const errorText = await response.text();
+                throw new Error(`Gist create failed: ${response.status} - ${errorText}`);
             }
             
-            return JSON.parse(responseText);
+            return await response.json();
         } catch (e) {
             console.error("API Create Error:", e);
-            alert("Create Error: " + e.message); // Show error to user
+            alert("Create Error: " + e.message);
             return null;
         }
     },
 
     async updateGist(gistId, filename, content, sha) {
         try {
-            console.log("Updating Gist...", gistId, sha);
+            console.log("Updating Gist...", gistId);
             
-            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            const response = await fetch(`${CONFIG.API_BASE}/${gistId}`, {
                 method: 'PATCH',
                 headers: this.getHeaders(),
                 body: JSON.stringify({
@@ -105,7 +102,7 @@ const GitHubAPI = {
         
         try {
             return {
-                data: JSON.parse(rawContent),
+                 JSON.parse(rawContent),
                 sha: sha
             };
         } catch (e) {
@@ -115,6 +112,4 @@ const GitHubAPI = {
     }
 };
 
-console.log("GitHubAPI Loaded");
-console.log("Token configured:", CONFIG.GITHUB_TOKEN ? 'Yes' : 'No');
-console.log("Directory ID:", CONFIG.DIRECTORY_GIST_ID || 'Not set');
+console.log("GitHubAPI Loaded (Netlify Proxy)");
