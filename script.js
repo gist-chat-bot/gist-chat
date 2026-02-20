@@ -1,4 +1,111 @@
 // script.js
+// Add at the top with other DOM elements
+const UI = {
+    modal: document.getElementById('login-modal'),
+    passphraseInput: document.getElementById('passphrase-input'),
+    loginBtn: document.getElementById('login-btn'),
+    messageInput: document.getElementById('message-input'),
+    sendBtn: document.getElementById('send-btn'),
+    messageList: document.getElementById('message-list'),
+    syncStatus: document.getElementById('sync-status'),
+    micBtn: document.getElementById('mic-btn'),
+    menuToggle: document.getElementById('menu-toggle'),
+    sidebar: document.getElementById('sidebar'),
+    sidebarOverlay: document.getElementById('sidebar-overlay')
+};
+
+// Add these functions to script.js
+
+// Mobile Menu Toggle
+function setupMobileMenu() {
+    UI.menuToggle.addEventListener('click', () => {
+        UI.sidebar.classList.toggle('open');
+        UI.sidebarOverlay.classList.toggle('show');
+    });
+    
+    UI.sidebarOverlay.addEventListener('click', () => {
+        UI.sidebar.classList.remove('open');
+        UI.sidebarOverlay.classList.remove('show');
+    });
+    
+    // Close sidebar when clicking a slot
+    document.querySelectorAll('.slot-box').forEach(slot => {
+        slot.addEventListener('click', () => {
+            UI.sidebar.classList.remove('open');
+            UI.sidebarOverlay.classList.remove('show');
+        });
+    });
+}
+
+// Keyboard Handling - Keep input visible
+function setupKeyboardHandling() {
+    // When input is focused, scroll it into view
+    UI.messageInput.addEventListener('focus', () => {
+        setTimeout(() => {
+            UI.messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Also scroll message list to bottom
+            UI.messageList.scrollTop = UI.messageList.scrollHeight;
+        }, 300);
+    });
+    
+    // Handle visual viewport changes (keyboard open/close)
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            const keyboardHeight = window.innerHeight - window.visualViewport.height;
+            if (keyboardHeight > 100) {
+                // Keyboard is open
+                UI.messageList.style.paddingBottom = `${keyboardHeight + 20}px`;
+            } else {
+                // Keyboard is closed
+                UI.messageList.style.paddingBottom = '20px';
+            }
+        });
+    }
+}
+
+// Update init() function to call these
+async function init() {
+    console.log("Gist Initializing...");
+    
+    // Check for existing session
+    const savedId = localStorage.getItem('gist_user_id');
+    if (savedId) {
+        AppState.userId = savedId;
+        document.getElementById('my-user-id').textContent = savedId;
+    }
+    
+    // Show login modal
+    UI.modal.style.display = 'flex';
+    
+    // Setup Event Listeners
+    UI.loginBtn.addEventListener('click', handleLogin);
+    UI.sendBtn.addEventListener('click', handleSend);
+    UI.micBtn.addEventListener('click', handleVoiceInput);
+    
+    // Mobile menu
+    setupMobileMenu();
+    
+    // Keyboard handling
+    setupKeyboardHandling();
+    
+    // Start Polling (will activate after chat selected)
+    setInterval(pollMessages, CONFIG.POLL_INTERVAL);
+}
+
+// Update renderMessage to auto-scroll
+function renderMessage(msg, isLocal) {
+    // ... existing code ...
+    
+    UI.messageList.appendChild(packet);
+    
+    // Smooth scroll to bottom with delay to ensure rendering
+    setTimeout(() => {
+        UI.messageList.scrollTo({
+            top: UI.messageList.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
+}
 
 // State Management
 const AppState = {
