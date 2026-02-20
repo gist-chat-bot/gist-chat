@@ -1,8 +1,7 @@
-// api.js
+// api.js - Netlify Proxy Version
 
 const GitHubAPI = {
     
-    // ✅ No token in headers! Netlify adds it.
     getHeaders() {
         return {
             'Accept': 'application/vnd.github.v3+json',
@@ -18,7 +17,7 @@ const GitHubAPI = {
             
             if (!response.ok) {
                 console.error(`Gist fetch failed: ${response.status}`);
-                throw new Error(`Gist fetch failed: ${response.status}`);
+                return null;
             }
             return await response.json();
         } catch (e) {
@@ -29,8 +28,6 @@ const GitHubAPI = {
 
     async createGist(filename, content, description = "Gist Chat Data") {
         try {
-            console.log("Creating Gist...", filename);
-            
             const body = JSON.stringify({
                 description: description,
                 public: true,
@@ -47,25 +44,21 @@ const GitHubAPI = {
                 body: body
             });
             
-            console.log("Response status:", response.status);
-            
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Gist create failed: ${response.status} - ${errorText}`);
+                console.error(`Create failed: ${response.status}`, errorText);
+                return null;
             }
             
             return await response.json();
         } catch (e) {
             console.error("API Create Error:", e);
-            alert("Create Error: " + e.message);
             return null;
         }
     },
 
     async updateGist(gistId, filename, content, sha) {
         try {
-            console.log("Updating Gist...", gistId);
-            
             const response = await fetch(`${CONFIG.API_BASE}/${gistId}`, {
                 method: 'PATCH',
                 headers: this.getHeaders(),
@@ -79,12 +72,9 @@ const GitHubAPI = {
                 })
             });
             
-            console.log("Update Response:", response.status);
-            
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Gist update failed: ${response.status}`, errorText);
-                throw new Error(`Gist update failed: ${response.status}`);
+                console.error(`Update failed: ${response.status}`);
+                return null;
             }
             return await response.json();
         } catch (e) {
@@ -97,12 +87,13 @@ const GitHubAPI = {
         if (!gistData || !gistData.files || !gistData.files[filename]) {
             return null;
         }
+        
         const rawContent = gistData.files[filename].content;
         const sha = gistData.files[filename].sha;
         
         try {
             return {
-                 JSON.parse(rawContent),
+                data: JSON.parse(rawContent),
                 sha: sha
             };
         } catch (e) {
@@ -112,4 +103,4 @@ const GitHubAPI = {
     }
 };
 
-console.log("GitHubAPI Loaded (Netlify Proxy)");
+console.log("✅ GitHubAPI Loaded (Netlify Mode)");
