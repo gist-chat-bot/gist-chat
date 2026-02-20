@@ -1,4 +1,4 @@
-// api.js - Netlify Proxy Version
+// api.js - Direct Function Call Version
 
 const GitHubAPI = {
     
@@ -9,91 +9,63 @@ const GitHubAPI = {
         };
     },
 
-    async getGist(gistId) {
-        try {
-            const response = await fetch(`${CONFIG.API_BASE}/${gistId}`, {
-                headers: this.getHeaders()
-            });
-            
-            if (!response.ok) {
-                console.error(`Gist fetch failed: ${response.status}`);
-                return null;
-            }
-            return await response.json();
-        } catch (e) {
-            console.error("API Get Error:", e);
+    async callProxy(method, endpoint, body = null) {
+        // Call the function directly
+        const response = await fetch(`${CONFIG.API_BASE}`, {
+            method: 'POST', // Always POST to our proxy
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                method: method,      // Tell proxy what method to use
+                endpoint: endpoint,  // Tell proxy which GitHub endpoint
+                body: body
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            console.error("Proxy Error:", error);
             return null;
         }
+        
+        return await response.json();
+    },
+
+    async getGist(gistId) {
+        return await this.callProxy('GET', `/gists/${gistId}`);
     },
 
     async createGist(filename, content, description = "Gist Chat Data") {
-        try {
-            const body = JSON.stringify({
-                description: description,
-                public: true,
-                files: {
-                    [filename]: {
-                        content: JSON.stringify(content)
-                    }
-                }
-            });
-            
-            const response = await fetch(`${CONFIG.API_BASE}`, {
-                method: 'POST',
-                headers: this.getHeaders(),
-                body: body
-            });
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Create failed: ${response.status}`, errorText);
-                return null;
+        const payload = {
+            description: description,
+            public: true,
+            files: {
+                [filename]: { content: JSON.stringify(content) }
             }
-            
-            return await response.json();
-        } catch (e) {
-            console.error("API Create Error:", e);
-            return null;
-        }
+        };
+        return await this.callProxy('POST', '/gists', payload);
     },
 
     async updateGist(gistId, filename, content, sha) {
-        try {
-            const response = await fetch(`${CONFIG.API_BASE}/${gistId}`, {
-                method: 'PATCH',
-                headers: this.getHeaders(),
-                body: JSON.stringify({
-                    files: {
-                        [filename]: {
-                            content: JSON.stringify(content),
-                            sha: sha
-                        }
-                    }
-                })
-            });
-            
-            if (!response.ok) {
-                console.error(`Update failed: ${response.status}`);
-                return null;
+        const payload = {
+            files: {
+                [filename]: {
+                    content: JSON.stringify(content),
+                    sha: sha
+                }
             }
-            return await response.json();
-        } catch (e) {
-            console.error("API Update Error:", e);
-            return null;
-        }
+        };
+        return await this.callProxy('PATCH', `/gists/${gistId}`, payload);
     },
 
     parseGistFile(gistData, filename) {
         if (!gistData || !gistData.files || !gistData.files[filename]) {
             return null;
         }
-        
         const rawContent = gistData.files[filename].content;
         const sha = gistData.files[filename].sha;
-        
         try {
             return {
-                data: JSON.parse(rawContent),
+                 JSON.parse(rawContent),
                 sha: sha
             };
         } catch (e) {
@@ -103,4 +75,4 @@ const GitHubAPI = {
     }
 };
 
-console.log("✅ GitHubAPI Loaded (Netlify Mode)");
+console.log("✅ GitHubAPI Loaded (Direct Function Mode)");
