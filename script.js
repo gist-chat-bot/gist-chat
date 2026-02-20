@@ -10,7 +10,7 @@ const AppState = {
     lastSentTime: 0
 };
 
-// ✅ FIXED: Single UI declaration with all elements
+// UI Elements
 const UI = {
     modal: document.getElementById('login-modal'),
     passphraseInput: document.getElementById('passphrase-input'),
@@ -19,7 +19,6 @@ const UI = {
     sendBtn: document.getElementById('send-btn'),
     messageList: document.getElementById('message-list'),
     syncStatus: document.getElementById('sync-status'),
-    micBtn: document.getElementById('mic-btn'),
     menuToggle: document.getElementById('menu-toggle'),
     sidebar: document.getElementById('sidebar'),
     sidebarOverlay: document.getElementById('sidebar-overlay'),
@@ -27,7 +26,8 @@ const UI = {
     dmSlots: document.getElementById('dm-slots'),
     gcSlots: document.getElementById('gc-slots'),
     addDmBtn: document.getElementById('add-dm-btn'),
-    addGcBtn: document.getElementById('add-gc-btn')
+    addGcBtn: document.getElementById('add-gc-btn'),
+    myUserId: document.getElementById('my-user-id')
 };
 
 // Initialize App
@@ -38,7 +38,7 @@ async function init() {
     const savedId = localStorage.getItem('gist_user_id');
     if (savedId) {
         AppState.userId = savedId;
-        UI.chatHeader.textContent = `User: ${savedId}`;
+        UI.myUserId.textContent = savedId;
     }
     
     // Show login modal
@@ -47,7 +47,6 @@ async function init() {
     // Setup Event Listeners
     UI.loginBtn.addEventListener('click', handleLogin);
     UI.sendBtn.addEventListener('click', handleSend);
-    UI.micBtn.addEventListener('click', handleVoiceInput);
     
     // Mobile menu
     setupMobileMenu();
@@ -58,7 +57,7 @@ async function init() {
     // Render initial slots
     renderSlots();
     
-    // Start Polling (will activate after chat selected)
+    // Start Polling
     setInterval(pollMessages, CONFIG.POLL_INTERVAL);
     
     console.log("Gist Ready");
@@ -77,16 +76,21 @@ async function handleLogin() {
     UI.messageInput.disabled = false;
     
     updateSyncStatus("Ready");
+    updateSendButton(0); // ✅ Enable send button visually
     console.log("Session Unlocked");
     
-    // Re-render slots with decrypted state
     renderSlots();
 }
 
 // Handle Send Message
 async function handleSend() {
     const text = UI.messageInput.value.trim();
-    if (!text || !AppState.currentGistId) return;
+    if (!text || !AppState.currentGistId) {
+        if (!AppState.currentGistId) {
+            alert("Select a chat slot first");
+        }
+        return;
+    }
     
     // Check Cooldown
     const now = Date.now();
@@ -134,7 +138,6 @@ async function handleSend() {
 function updateSendButton(remainingSeconds) {
     const circle = UI.sendBtn.querySelector('.circle');
     const maxTime = CONFIG.COOLDOWN_MS / 1000;
-    const offset = 100; // stroke-dasharray value
     
     if (remainingSeconds > 0) {
         UI.sendBtn.disabled = true;
@@ -274,7 +277,7 @@ function renderSlots() {
         if (activeDMs[i]) {
             slot.textContent = activeDMs[i].substr(0, 10);
             slot.classList.add('active');
-            slot.onclick = () => loadChat(activeDMs[i]);
+            setupSlotEvents(slot, activeDMs[i], 'dm');
         } else {
             slot.textContent = '+';
             slot.onclick = () => promptNewChat('dm');
@@ -290,7 +293,7 @@ function renderSlots() {
         if (activeGCs[i]) {
             slot.textContent = activeGCs[i].substr(0, 10);
             slot.classList.add('active');
-            slot.onclick = () => loadChat(activeGCs[i]);
+            setupSlotEvents(slot, activeGCs[i], 'gc');
         } else {
             slot.textContent = '+';
             slot.onclick = () => promptNewChat('gc');
@@ -299,11 +302,60 @@ function renderSlots() {
     }
 }
 
+// Setup Slot Events (Tap + Long-Press Remove)
+function setupSlotEvents(slot, gistId, type) {
+    let pressTimer;
+    
+    // Tap to open
+    slot.onclick = (e) => {
+        loadChat(gistId);
+    };
+    
+    // Long-press to remove (mobile)
+    slot.addEventListener('touchstart', (e) => {
+        pressTimer = setTimeout(() => {
+            if (confirm(`Remove ${gistId} from slots?`)) {
+                removeSlot(gistId, type);
+            }
+        }, 800);
+    });
+    
+    slot.addEventListener('touchend', () => clearTimeout(pressTimer));
+    slot.addEventListener('touchcancel', () => clearTimeout(pressTimer));
+    
+    // Desktop: right-click to remove
+    slot.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (confirm(`Remove ${gistId} from slots?`)) {
+            removeSlot(gistId, type);
+        }
+    });
+}
+
+// Remove Contact from Slot
+function removeSlot(gistId, type) {
+    const key = type === 'dm' ? 'active_contacts' : 'active_groups';
+    let current = JSON.parse(localStorage.getItem(key) || '[]');
+    
+    current = current.filter(id => id !== gistId);
+    localStorage.setItem(key, JSON.stringify(current));
+    
+    if (AppState.currentGistId === gistId) {
+        AppState.currentGistId = null;
+        AppState.messages = [];
+        UI.messageList.innerHTML = '<div class="system-msg">Select a slot to chat</div>';
+        UI.chatHeader.textContent = 'Select a Slot';
+        UI.messageInput.disabled = true;
+    }
+    
+    renderSlots();
+    console.log(`Removed ${gistId} from ${type}`);
+}
+
 // Prompt for New Chat/GC
 function promptNewChat(type) {
     const gistId = prompt(`Enter ${type === 'dm' ? 'User ID or Gist ID' : 'GC Gist ID'}:`);
     if (gistId) {
-        // For now, just add to localStorage as active
         const key = type === 'dm' ? 'active_contacts' : 'active_groups';
         const current = JSON.parse(localStorage.getItem(key) || '[]');
         if (!current.includes(gistId)) {
@@ -311,6 +363,8 @@ function promptNewChat(type) {
             localStorage.setItem(key, JSON.stringify(current));
             renderSlots();
             loadChat(gistId);
+        } else {
+            alert("Already in slots");
         }
     }
 }
@@ -322,6 +376,7 @@ async function loadChat(gistId) {
     AppState.currentGistSha = null;
     UI.messageList.innerHTML = '<div class="system-msg">Loading messages...</div>';
     UI.chatHeader.textContent = `Chat: ${gistId.substr(0, 10)}...`;
+    UI.messageInput.disabled = false;
     
     updateSyncStatus("Loading...");
     await pollMessages();
@@ -329,31 +384,6 @@ async function loadChat(gistId) {
     // Close mobile sidebar if open
     UI.sidebar.classList.remove('open');
     UI.sidebarOverlay.classList.remove('show');
-}
-
-// Voice Input (Speech to Text)
-function handleVoiceInput() {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        alert("Speech API not supported on this device");
-        return;
-    }
-    
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.start();
-    
-    recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript;
-        UI.messageInput.value = text;
-        UI.messageInput.focus();
-    };
-    
-    recognition.onerror = (event) => {
-        console.error("Voice input error:", event.error);
-        alert("Voice input failed: " + event.error);
-    };
 }
 
 // Mobile Menu Toggle
@@ -371,9 +401,8 @@ function setupMobileMenu() {
     });
 }
 
-// Keyboard Handling - Keep input visible
+// Keyboard Handling
 function setupKeyboardHandling() {
-    // When input is focused, scroll it into view
     UI.messageInput.addEventListener('focus', () => {
         setTimeout(() => {
             UI.messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -381,15 +410,12 @@ function setupKeyboardHandling() {
         }, 300);
     });
     
-    // Handle visual viewport changes (keyboard open/close)
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', () => {
             const keyboardHeight = window.innerHeight - window.visualViewport.height;
             if (keyboardHeight > 100) {
-                // Keyboard is open
                 UI.messageList.style.paddingBottom = `${keyboardHeight + 70}px`;
             } else {
-                // Keyboard is closed
                 UI.messageList.style.paddingBottom = '70px';
             }
         });
@@ -403,7 +429,7 @@ function updateSyncStatus(status) {
     }
 }
 
-// Start App when DOM is ready
+// Start App
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
