@@ -84,8 +84,9 @@ const GitHubAPI = {
         const sha = gistData.files[filename].sha;
         
         try {
+            // ✅ FIXED: Added 'data:' key
             return {
-                 JSON.parse(rawContent),
+                data: JSON.parse(rawContent),
                 sha: sha
             };
         } catch (e) {
