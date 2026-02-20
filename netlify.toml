@@ -1,4 +1,3 @@
-
 [build]
   functions = "netlify/functions"
   publish = "."
@@ -6,5 +5,12 @@
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+# Test route
+[[redirects]]
+  from = "/api/test"
+  to = "/.netlify/functions/proxy"
   status = 200
   force = true
