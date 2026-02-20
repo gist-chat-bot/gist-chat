@@ -1,78 +1,84 @@
-// api.js - Direct Function Call Version
+// api.js
+console.log("Loading api.js...");
 
 const GitHubAPI = {
-    
-    getHeaders() {
+    getHeaders: function() {
         return {
             'Accept': 'application/vnd.github.v3+json',
             'Content-Type': 'application/json'
         };
     },
 
-    async callProxy(method, endpoint, body = null) {
-        // Call the function directly
-        const response = await fetch(`${CONFIG.API_BASE}`, {
-            method: 'POST', // Always POST to our proxy
-            headers: this.getHeaders(),
-            body: JSON.stringify({
-                method: method,      // Tell proxy what method to use
-                endpoint: endpoint,  // Tell proxy which GitHub endpoint
-                body: body
-            })
-        });
+    callProxy: async function(method, endpoint, body) {
+        console.log("Calling proxy:", method, endpoint);
         
-        if (!response.ok) {
-            const error = await response.json();
-            console.error("Proxy Error:", error);
+        try {
+            const response = await fetch(CONFIG.API_BASE, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify({
+                    method: method,
+                    endpoint: endpoint,
+                    body: body
+                })
+            });
+            
+            console.log("Proxy response:", response.status);
+            
+            if (!response.ok) {
+                console.error("Proxy failed:", response.status);
+                return null;
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error("Proxy error:", error);
             return null;
         }
-        
-        return await response.json();
     },
 
-    async getGist(gistId) {
-        return await this.callProxy('GET', `/gists/${gistId}`);
+    getGist: async function(gistId) {
+        console.log("Getting gist:", gistId);
+        return await this.callProxy('GET', '/gists/' + gistId, null);
     },
 
-    async createGist(filename, content, description = "Gist Chat Data") {
-        const payload = {
-            description: description,
+    createGist: async function(filename, content, description) {
+        console.log("Creating gist:", filename);
+        var payload = {
+            description: description || "Gist Chat Data",
             public: true,
-            files: {
-                [filename]: { content: JSON.stringify(content) }
-            }
+            files: {}
         };
+        payload.files[filename] = { content: JSON.stringify(content) };
+        
         return await this.callProxy('POST', '/gists', payload);
     },
 
-    async updateGist(gistId, filename, content, sha) {
-        const payload = {
-            files: {
-                [filename]: {
-                    content: JSON.stringify(content),
-                    sha: sha
-                }
-            }
+    updateGist: async function(gistId, filename, content, sha) {
+        console.log("Updating gist:", gistId);
+        var payload = { files: {} };
+        payload.files[filename] = {
+            content: JSON.stringify(content),
+            sha: sha
         };
-        return await this.callProxy('PATCH', `/gists/${gistId}`, payload);
+        
+        return await this.callProxy('PATCH', '/gists/' + gistId, payload);
     },
 
-    parseGistFile(gistData, filename) {
+    parseGistFile: function(gistData, filename) {
         if (!gistData || !gistData.files || !gistData.files[filename]) {
             return null;
         }
-        const rawContent = gistData.files[filename].content;
-        const sha = gistData.files[filename].sha;
         try {
             return {
-                 JSON.parse(rawContent),
-                sha: sha
+                 JSON.parse(gistData.files[filename].content),
+                sha: gistData.files[filename].sha
             };
         } catch (e) {
-            console.error("JSON Parse Error:", e);
+            console.error("Parse error:", e);
             return null;
         }
     }
 };
 
-console.log("✅ GitHubAPI Loaded (Direct Function Mode)");
+console.log("✅ GitHubAPI loaded successfully!");
