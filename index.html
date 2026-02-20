@@ -1,8 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Gist</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -10,13 +12,17 @@
 
     <!-- Top Bar: Sync Status -->
     <header id="app-header">
+        <button class="menu-toggle" id="menu-toggle">☰</button>
         <div class="status-indicator" id="sync-status">Offline</div>
         <div class="user-id-display" id="my-user-id">--</div>
     </header>
 
+    <!-- Overlay for mobile -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
     <div class="container">
         <!-- Sidebar: Slots -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="slot-section">
                 <h3>Direct (0/5)</h3>
                 <div class="slots-grid" id="dm-slots">
@@ -48,7 +54,7 @@
             <!-- Input Area -->
             <div class="input-area">
                 <button id="mic-btn" title="Speech to Text">🎤</button>
-                <input type="text" id="message-input" placeholder="Type encrypted message..." disabled>
+                <input type="text" id="message-input" placeholder="Type encrypted message..." disabled autocomplete="off">
                 
                 <!-- Cooldown Send Button -->
                 <button id="send-btn" disabled>
@@ -66,12 +72,14 @@
     <div id="login-modal" class="modal">
         <div class="modal-content">
             <h2>Decrypt Session</h2>
-            <input type="password" id="passphrase-input" placeholder="Enter Passphrase">
+            <input type="password" id="passphrase-input" placeholder="Enter Passphrase" autocomplete="off">
             <button id="login-btn">Unlock</button>
         </div>
     </div>
 
     <script src="config.js"></script>
+    <script src="crypto.js"></script>
+    <script src="api.js"></script>
     <script src="script.js"></script>
 </body>
-  </html>
+</html>
