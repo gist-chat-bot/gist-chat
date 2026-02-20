@@ -6,7 +6,7 @@ const CONFIG = {
     GITHUB_USERNAME: 'gist-chat-bot', 
     
     // Directory Gist ID (Create this manually later)
-    DIRECTORY_GIST_ID: '', 
+    DIRECTORY_GIST_ID: '<script src="https://gist.github.com/gist-chat-bot/e0515b010d3dd22bbe6b69b482395aa4.js"></script>', 
     
     // Cooldown in milliseconds (2 minutes)
     COOLDOWN_MS: 120000, 
