@@ -14,7 +14,6 @@ html, body {
     color: var(--text-color); 
     height: 100vh; 
     overflow: hidden;
-    /* Prevent zoom on input focus */
     touch-action: manipulation;
 }
 
@@ -24,6 +23,7 @@ html, body {
     background: #000; border-bottom: 1px solid #333;
     position: relative;
     z-index: 10;
+    align-items: center;
 }
 .status-indicator { color: var(--accent); font-size: 0.8rem; }
 .user-id-display { font-size: 0.9rem; font-weight: bold; }
@@ -36,6 +36,7 @@ html, body {
     color: var(--text-color);
     font-size: 1.5rem;
     cursor: pointer;
+    padding: 5px;
 }
 
 /* Layout */
@@ -84,11 +85,40 @@ html, body {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 0 5px;
+    position: relative;
+    user-select: none;
 }
 
 .slot-box.active { 
     border-color: var(--accent); 
     color: var(--accent); 
+}
+
+/* Remove Indicator (X) */
+.slot-box.active::after {
+    content: "×";
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--danger);
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    font-weight: bold;
+}
+
+.slot-box.active:active::after,
+.slot-box.active:hover::after {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .add-btn { 
@@ -129,10 +159,8 @@ html, body {
     display: flex; 
     flex-direction: column; 
     gap: 10px;
-    /* Smooth scrolling */
     scroll-behavior: smooth;
-    /* Prevent keyboard covering */
-    padding-bottom: 20px;
+    padding-bottom: 70px;
 }
 
 /* Message Packet */
@@ -178,7 +206,6 @@ html, body {
     display: flex; 
     gap: 10px; 
     align-items: center;
-    /* Critical: Keep input visible when keyboard opens */
     flex-shrink: 0;
 }
 
@@ -190,8 +217,7 @@ html, body {
     color: #fff; 
     border-radius: 4px; 
     outline: none;
-    font-size: 16px; /* Prevents zoom on iOS */
-    /* Ensure it's always visible */
+    font-size: 16px;
     min-width: 0;
 }
 
@@ -199,17 +225,9 @@ html, body {
     background: #3a3a3a;
 }
 
-#mic-btn { 
-    background: none; 
-    border: none; 
-    font-size: 1.5rem; 
-    cursor: pointer;
-    flex-shrink: 0;
-    padding: 5px;
-}
-
-#mic-btn:active {
-    opacity: 0.7;
+#message-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Send Button with Ring */
@@ -293,7 +311,7 @@ html, body {
     border: 1px solid #444;
     color: #fff;
     border-radius: 4px;
-    font-size: 16px; /* Prevents iOS zoom */
+    font-size: 16px;
 }
 
 .modal-content input:focus {
@@ -333,7 +351,7 @@ html, body {
     .sidebar {
         position: fixed;
         left: 0;
-        top: 50px; /* Below header */
+        top: 50px;
         height: calc(100vh - 50px);
         transform: translateX(-100%);
         width: 280px;
@@ -361,14 +379,13 @@ html, body {
         font-size: 0.85rem;
     }
     
-    /* Adjust for mobile keyboard */
     .input-area {
         padding: 8px;
     }
     
     #message-input {
         padding: 10px;
-        font-size: 16px; /* Critical: prevents iOS zoom */
+        font-size: 16px;
     }
     
     .slot-box {
