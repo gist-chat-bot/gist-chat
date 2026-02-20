@@ -174,30 +174,45 @@ const DB = {
         }
     },
     
-    async createRoom(type, participantIds) {
+        async createRoom(type, participantIds) {
+        console.log("🔵 DB.createRoom called:", type, participantIds);
         try {
-            const { data: room, error: roomError } = await supabaseClient
+            // Create room
+            const {  room, error: roomError } = await supabaseClient
                 .from('rooms')
                 .insert({ type })
                 .select()
                 .single();
             
-            if (roomError) throw roomError;
+            if (roomError) {
+                console.error("Room creation error:", roomError);
+                throw roomError;
+            }
             
-            const participants = [this.profileId, ...participantIds].map(id => ({
+            console.log("🟢 Room created:", room.id);
+            
+            // Add participants (current user + others)
+            const allParticipantIds = [this.profileId, ...participantIds];
+            const participants = allParticipantIds.map(id => ({
                 room_id: room.id,
                 user_id: id
             }));
+            
+            console.log("Adding participants:", participants);
             
             const { error: partError } = await supabaseClient
                 .from('participants')
                 .insert(participants);
             
-            if (partError) throw partError;
+            if (partError) {
+                console.error("Participant error:", partError);
+                throw partError;
+            }
             
+            console.log("🟢 Participants added successfully");
             return room;
         } catch (error) {
-            console.error("Create room failed:", error);
+            console.error("🔴 Create room failed:", error);
             throw error;
         }
     },
