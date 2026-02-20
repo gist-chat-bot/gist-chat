@@ -1,5 +1,16 @@
 // script.js
-// Add at the top with other DOM elements
+
+// State Management
+const AppState = {
+    passphrase: null,
+    currentGistId: null,
+    currentGistSha: null,
+    messages: [],
+    userId: null,
+    lastSentTime: 0
+};
+
+// ✅ FIXED: Single UI declaration with all elements
 const UI = {
     modal: document.getElementById('login-modal'),
     passphraseInput: document.getElementById('passphrase-input'),
@@ -11,59 +22,15 @@ const UI = {
     micBtn: document.getElementById('mic-btn'),
     menuToggle: document.getElementById('menu-toggle'),
     sidebar: document.getElementById('sidebar'),
-    sidebarOverlay: document.getElementById('sidebar-overlay')
+    sidebarOverlay: document.getElementById('sidebar-overlay'),
+    chatHeader: document.getElementById('chat-header'),
+    dmSlots: document.getElementById('dm-slots'),
+    gcSlots: document.getElementById('gc-slots'),
+    addDmBtn: document.getElementById('add-dm-btn'),
+    addGcBtn: document.getElementById('add-gc-btn')
 };
 
-// Add these functions to script.js
-
-// Mobile Menu Toggle
-function setupMobileMenu() {
-    UI.menuToggle.addEventListener('click', () => {
-        UI.sidebar.classList.toggle('open');
-        UI.sidebarOverlay.classList.toggle('show');
-    });
-    
-    UI.sidebarOverlay.addEventListener('click', () => {
-        UI.sidebar.classList.remove('open');
-        UI.sidebarOverlay.classList.remove('show');
-    });
-    
-    // Close sidebar when clicking a slot
-    document.querySelectorAll('.slot-box').forEach(slot => {
-        slot.addEventListener('click', () => {
-            UI.sidebar.classList.remove('open');
-            UI.sidebarOverlay.classList.remove('show');
-        });
-    });
-}
-
-// Keyboard Handling - Keep input visible
-function setupKeyboardHandling() {
-    // When input is focused, scroll it into view
-    UI.messageInput.addEventListener('focus', () => {
-        setTimeout(() => {
-            UI.messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Also scroll message list to bottom
-            UI.messageList.scrollTop = UI.messageList.scrollHeight;
-        }, 300);
-    });
-    
-    // Handle visual viewport changes (keyboard open/close)
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', () => {
-            const keyboardHeight = window.innerHeight - window.visualViewport.height;
-            if (keyboardHeight > 100) {
-                // Keyboard is open
-                UI.messageList.style.paddingBottom = `${keyboardHeight + 20}px`;
-            } else {
-                // Keyboard is closed
-                UI.messageList.style.paddingBottom = '20px';
-            }
-        });
-    }
-}
-
-// Update init() function to call these
+// Initialize App
 async function init() {
     console.log("Gist Initializing...");
     
@@ -71,7 +38,7 @@ async function init() {
     const savedId = localStorage.getItem('gist_user_id');
     if (savedId) {
         AppState.userId = savedId;
-        document.getElementById('my-user-id').textContent = savedId;
+        UI.chatHeader.textContent = `User: ${savedId}`;
     }
     
     // Show login modal
@@ -88,68 +55,13 @@ async function init() {
     // Keyboard handling
     setupKeyboardHandling();
     
-    // Start Polling (will activate after chat selected)
-    setInterval(pollMessages, CONFIG.POLL_INTERVAL);
-}
-
-// Update renderMessage to auto-scroll
-function renderMessage(msg, isLocal) {
-    // ... existing code ...
-    
-    UI.messageList.appendChild(packet);
-    
-    // Smooth scroll to bottom with delay to ensure rendering
-    setTimeout(() => {
-        UI.messageList.scrollTo({
-            top: UI.messageList.scrollHeight,
-            behavior: 'smooth'
-        });
-    }, 100);
-}
-
-// State Management
-const AppState = {
-    passphrase: null,
-    currentGistId: null,
-    currentGistSha: null,
-    messages: [],
-    userId: null,
-    lastSentTime: 0
-};
-
-// DOM Elements
-const UI = {
-    modal: document.getElementById('login-modal'),
-    passphraseInput: document.getElementById('passphrase-input'),
-    loginBtn: document.getElementById('login-btn'),
-    messageInput: document.getElementById('message-input'),
-    sendBtn: document.getElementById('send-btn'),
-    messageList: document.getElementById('message-list'),
-    syncStatus: document.getElementById('sync-status'),
-    micBtn: document.getElementById('mic-btn')
-};
-
-// Initialize App
-async function init() {
-    console.log("Gist Initializing...");
-    
-    // Check for existing session
-    const savedId = localStorage.getItem('gist_user_id');
-    if (savedId) {
-        AppState.userId = savedId;
-        document.getElementById('my-user-id').textContent = savedId;
-    }
-    
-    // Show login modal
-    UI.modal.style.display = 'flex';
-    
-    // Setup Event Listeners
-    UI.loginBtn.addEventListener('click', handleLogin);
-    UI.sendBtn.addEventListener('click', handleSend);
-    UI.micBtn.addEventListener('click', handleVoiceInput);
+    // Render initial slots
+    renderSlots();
     
     // Start Polling (will activate after chat selected)
     setInterval(pollMessages, CONFIG.POLL_INTERVAL);
+    
+    console.log("Gist Ready");
 }
 
 // Handle Login
@@ -167,7 +79,7 @@ async function handleLogin() {
     updateSyncStatus("Ready");
     console.log("Session Unlocked");
     
-    // Load saved slots
+    // Re-render slots with decrypted state
     renderSlots();
 }
 
@@ -182,7 +94,7 @@ async function handleSend() {
     
     if (timePassed < CONFIG.COOLDOWN_MS) {
         const remaining = Math.ceil((CONFIG.COOLDOWN_MS - timePassed) / 1000);
-        alert(`Wait ${remaining}s`);
+        updateSendButton(remaining);
         return;
     }
     
@@ -213,6 +125,27 @@ async function handleSend() {
     updateSyncStatus("Syncing...");
     await pushMessages();
     updateSyncStatus("Synced");
+    
+    // Reset cooldown UI
+    updateSendButton(0);
+}
+
+// Update Send Button Cooldown Visual
+function updateSendButton(remainingSeconds) {
+    const circle = UI.sendBtn.querySelector('.circle');
+    const maxTime = CONFIG.COOLDOWN_MS / 1000;
+    const offset = 100; // stroke-dasharray value
+    
+    if (remainingSeconds > 0) {
+        UI.sendBtn.disabled = true;
+        const progress = (remainingSeconds / maxTime) * 100;
+        circle.style.strokeDasharray = `${progress}, 100`;
+        UI.sendBtn.querySelector('.send-icon').textContent = `${remainingSeconds}s`;
+    } else {
+        UI.sendBtn.disabled = false;
+        circle.style.strokeDasharray = `100, 100`;
+        UI.sendBtn.querySelector('.send-icon').textContent = '➤';
+    }
 }
 
 // Push Messages to Gist
@@ -235,6 +168,8 @@ async function pushMessages() {
     
     if (result) {
         AppState.currentGistSha = result.files['messages.json'].sha;
+    } else {
+        updateSyncStatus("Sync Failed");
     }
 }
 
@@ -259,15 +194,21 @@ async function pollMessages() {
     AppState.currentGistSha = parsed.sha;
     
     // Decrypt and Render New Messages
+    let newCount = 0;
     for (const msg of parsed.data.messages) {
         const exists = AppState.messages.find(m => m.messageId === msg.messageId);
         if (!exists) {
             AppState.messages.push(msg);
             renderMessage(msg, false);
+            newCount++;
         }
     }
     
-    updateSyncStatus("Synced");
+    if (newCount > 0) {
+        updateSyncStatus(`+${newCount} new`);
+    } else {
+        updateSyncStatus("Synced");
+    }
 }
 
 // Render Message to UI
@@ -275,7 +216,7 @@ function renderMessage(msg, isLocal) {
     const packet = document.createElement('div');
     packet.className = 'message-packet';
     
-    const time = new Date(msg.timestamp).toLocaleTimeString();
+    const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     const sender = msg.senderId || 'Unknown';
     
     packet.innerHTML = `
@@ -289,13 +230,14 @@ function renderMessage(msg, isLocal) {
     `;
     
     // Store for decryption on click
-    packet.querySelector('.packet-content').dataset.content = msg.content;
-    packet.querySelector('.packet-content').dataset.iv = msg.iv;
-    packet.querySelector('.packet-content').dataset.salt = msg.salt;
+    const contentEl = packet.querySelector('.packet-content');
+    contentEl.dataset.content = msg.content;
+    contentEl.dataset.iv = msg.iv;
+    contentEl.dataset.salt = msg.salt;
     
     // Add click to decrypt
-    packet.querySelector('.packet-content').addEventListener('click', async function() {
-        if (this.classList.contains('blurred')) {
+    contentEl.addEventListener('click', async function() {
+        if (this.classList.contains('blurred') && AppState.passphrase) {
             const encryptedData = {
                 content: this.dataset.content,
                 iv: this.dataset.iv,
@@ -304,44 +246,72 @@ function renderMessage(msg, isLocal) {
             const decrypted = await CryptoModule.decrypt(encryptedData, AppState.passphrase);
             this.textContent = decrypted;
             this.classList.remove('blurred');
+            this.style.cursor = 'text';
         }
     });
     
     UI.messageList.appendChild(packet);
-    UI.messageList.scrollTop = UI.messageList.scrollHeight;
+    
+    // Smooth scroll to bottom
+    setTimeout(() => {
+        UI.messageList.scrollTo({
+            top: UI.messageList.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 50);
 }
 
-// Render Slots (Placeholder)
+// Render Slots
 function renderSlots() {
-    const dmSlots = document.getElementById('dm-slots');
-    const gcSlots = document.getElementById('gc-slots');
-    
-    // Load from LocalStorage
     const activeDMs = JSON.parse(localStorage.getItem('active_contacts') || '[]');
     const activeGCs = JSON.parse(localStorage.getItem('active_groups') || '[]');
     
     // Render DM Slots (5 max)
-    dmSlots.innerHTML = '';
+    UI.dmSlots.innerHTML = '';
     for (let i = 0; i < 5; i++) {
         const slot = document.createElement('div');
         slot.className = 'slot-box';
-        slot.textContent = activeDMs[i] ? activeDMs[i].substr(0, 8) + '...' : '+';
         if (activeDMs[i]) {
+            slot.textContent = activeDMs[i].substr(0, 10);
+            slot.classList.add('active');
             slot.onclick = () => loadChat(activeDMs[i]);
+        } else {
+            slot.textContent = '+';
+            slot.onclick = () => promptNewChat('dm');
         }
-        dmSlots.appendChild(slot);
+        UI.dmSlots.appendChild(slot);
     }
     
     // Render GC Slots (2 max)
-    gcSlots.innerHTML = '';
+    UI.gcSlots.innerHTML = '';
     for (let i = 0; i < 2; i++) {
         const slot = document.createElement('div');
         slot.className = 'slot-box';
-        slot.textContent = activeGCs[i] ? activeGCs[i].substr(0, 8) + '...' : '+';
         if (activeGCs[i]) {
+            slot.textContent = activeGCs[i].substr(0, 10);
+            slot.classList.add('active');
             slot.onclick = () => loadChat(activeGCs[i]);
+        } else {
+            slot.textContent = '+';
+            slot.onclick = () => promptNewChat('gc');
         }
-        gcSlots.appendChild(slot);
+        UI.gcSlots.appendChild(slot);
+    }
+}
+
+// Prompt for New Chat/GC
+function promptNewChat(type) {
+    const gistId = prompt(`Enter ${type === 'dm' ? 'User ID or Gist ID' : 'GC Gist ID'}:`);
+    if (gistId) {
+        // For now, just add to localStorage as active
+        const key = type === 'dm' ? 'active_contacts' : 'active_groups';
+        const current = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!current.includes(gistId)) {
+            current.push(gistId);
+            localStorage.setItem(key, JSON.stringify(current));
+            renderSlots();
+            loadChat(gistId);
+        }
     }
 }
 
@@ -349,38 +319,93 @@ function renderSlots() {
 async function loadChat(gistId) {
     AppState.currentGistId = gistId;
     AppState.messages = [];
-    UI.messageList.innerHTML = '';
-    document.getElementById('chat-header').textContent = `Chat: ${gistId.substr(0, 8)}...`;
+    AppState.currentGistSha = null;
+    UI.messageList.innerHTML = '<div class="system-msg">Loading messages...</div>';
+    UI.chatHeader.textContent = `Chat: ${gistId.substr(0, 10)}...`;
     
     updateSyncStatus("Loading...");
     await pollMessages();
+    
+    // Close mobile sidebar if open
+    UI.sidebar.classList.remove('open');
+    UI.sidebarOverlay.classList.remove('show');
 }
 
 // Voice Input (Speech to Text)
 function handleVoiceInput() {
-    if (!('webkitSpeechRecognition' in window)) {
-        alert("Speech API not supported");
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert("Speech API not supported on this device");
         return;
     }
     
-    const recognition = new webkitSpeechRecognition();
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
+    recognition.interimResults = false;
     recognition.start();
     
     recognition.onresult = (event) => {
         const text = event.results[0][0].transcript;
         UI.messageInput.value = text;
+        UI.messageInput.focus();
     };
     
-    recognition.onerror = () => {
-        alert("Voice input failed");
+    recognition.onerror = (event) => {
+        console.error("Voice input error:", event.error);
+        alert("Voice input failed: " + event.error);
     };
+}
+
+// Mobile Menu Toggle
+function setupMobileMenu() {
+    if (!UI.menuToggle) return;
+    
+    UI.menuToggle.addEventListener('click', () => {
+        UI.sidebar.classList.toggle('open');
+        UI.sidebarOverlay.classList.toggle('show');
+    });
+    
+    UI.sidebarOverlay.addEventListener('click', () => {
+        UI.sidebar.classList.remove('open');
+        UI.sidebarOverlay.classList.remove('show');
+    });
+}
+
+// Keyboard Handling - Keep input visible
+function setupKeyboardHandling() {
+    // When input is focused, scroll it into view
+    UI.messageInput.addEventListener('focus', () => {
+        setTimeout(() => {
+            UI.messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            UI.messageList.scrollTop = UI.messageList.scrollHeight;
+        }, 300);
+    });
+    
+    // Handle visual viewport changes (keyboard open/close)
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            const keyboardHeight = window.innerHeight - window.visualViewport.height;
+            if (keyboardHeight > 100) {
+                // Keyboard is open
+                UI.messageList.style.paddingBottom = `${keyboardHeight + 70}px`;
+            } else {
+                // Keyboard is closed
+                UI.messageList.style.paddingBottom = '70px';
+            }
+        });
+    }
 }
 
 // Update Sync Status
 function updateSyncStatus(status) {
-    UI.syncStatus.textContent = status;
+    if (UI.syncStatus) {
+        UI.syncStatus.textContent = status;
+    }
 }
 
-// Start App
-init();
+// Start App when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
