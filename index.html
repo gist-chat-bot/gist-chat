@@ -192,9 +192,16 @@
     <script src="db.js"></script>
     <script src="script.js"></script>
     <script>
-    console.log("Config loaded:", typeof CONFIG);
-    console.log("Crypto loaded:", typeof CryptoModule);
-    console.log("DB loaded:", typeof DB);
+    // Debug: Check what's loaded
+    console.log("=== DEBUG INFO ===");
+    console.log("CONFIG:", typeof CONFIG);
+    console.log("CryptoModule:", typeof CryptoModule);
+    console.log("DB:", typeof DB);
+    console.log("supabase:", typeof window.supabase);
+    
+    if (typeof DB === 'undefined') {
+        alert("DB not loaded! Check console for errors");
+    }
     </script>
 </body>
 </html>
