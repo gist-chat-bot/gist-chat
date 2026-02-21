@@ -1,5 +1,5 @@
-// db.js - Supabase Database Layer (CORRECTED)
-console.log("🚀 db.js: Starting to load...");
+// db.js - Supabase Database Layer (DEVICE AUTH - NO SUPABASE AUTH)
+console.log("🚀 db.js: Starting to load (Device Auth Mode)...");
 
 // Check dependencies
 if (typeof window.supabase === 'undefined') {
@@ -20,7 +20,7 @@ if (typeof CryptoModule === 'undefined') {
     console.log("🟢 CryptoModule loaded");
 }
 
-// Initialize Supabase Client
+// Initialize Supabase Client (NO AUTH - just for data operations)
 let supabaseClient;
 try {
     if (window.supabase && CONFIG) {
@@ -28,20 +28,31 @@ try {
             CONFIG.SUPABASE_URL,
             CONFIG.SUPABASE_ANON_KEY
         );
-        console.log("🟢 Supabase client created");
+        console.log("🟢 Supabase client created (data-only mode)");
     }
 } catch (error) {
     console.error("🔴 Failed to create Supabase client:", error);
 }
 
-// DB Object
+// DB Object - Device-Based Authentication
 const DB = {
     userId: null,
-    profileId: null,
+    profileId: null, // Now stores the profiles.id (UUID), not auth user ID
     
-        async register(userId, passphrase) {
+    // ✅ NEW: Hash passphrase locally (never sent to server)
+    async hashPassphrase(passphrase) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(passphrase);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    },
+    
+    // ✅ DEVICE-BASED REGISTER (No Supabase Auth)
+    async register(userId, passphrase) {
         console.log("🔵 DB.register called with:", userId);
         try {
+            // Validate ID format
             if (!/^[A-Z][0-9]+$/.test(userId)) {
                 throw new Error("ID must be Letter+Number (e.g. A1)");
             }
@@ -54,122 +65,134 @@ const DB = {
                 .maybeSingle();
             
             if (existing) {
-                throw new Error("User already registered");
+                throw new Error("User already registered. Please login instead.");
             }
             
-            // Generate RSA keys
+            // Generate RSA key pair (device-only)
             const keyPair = await CryptoModule.generateKeyPair();
             const publicKey = await CryptoModule.exportPublicKey(keyPair.publicKey);
             const privateKey = await CryptoModule.exportPrivateKey(keyPair.privateKey);
             
-            // Sign up with Supabase Auth
-            const email = `${userId}@gist.local`;
-            const {  authData, error: authError } = await supabaseClient.auth.signUp({
-                email: email,
-                password: passphrase
-            });
+            // Hash passphrase locally (NEVER sent to server)
+            const passphraseHash = await this.hashPassphrase(passphrase);
             
-            // ✅ Check for auth errors FIRST
-            if (authError) {
-                console.error("❌ Auth error:", authError);
-                // Check if user already exists
-                if (authError.message.includes('User already registered')) {
-                    throw new Error("User already registered. Please login instead.");
-                }
-                throw authError;
-            }
-            
-            // ✅ Check if authData is valid
-            if (!authData || !authData.user) {
-                console.error("❌ No auth data returned:", authData);
-                throw new Error("Registration failed - no user data returned");
-            }
-            
-            // Insert profile
-            const { error: profileError } = await supabaseClient
+            // Insert profile into Supabase (ONLY public data)
+            const {  profile, error: profileError } = await supabaseClient
                 .from('profiles')
                 .insert({
-                    id: authData.user.id,
+                    // Let Supabase auto-generate UUID for id
                     user_id: userId,
                     public_key: publicKey
-                });
+                    // NO auth user ID - device is the source of truth
+                })
+                .select()
+                .single();
             
             if (profileError) {
-                console.error("❌ Profile error:", profileError);
+                console.error("❌ Profile creation error:", profileError);
                 throw new Error("Failed to create profile: " + profileError.message);
             }
             
-            // Save locally
+            if (!profile || !profile.id) {
+                throw new Error("Database did not return profile data");
+            }
+            
+            // ✅ Store PRIVATE data LOCALLY ONLY (never sent to server)
             localStorage.setItem(CONFIG.LS_KEYS.USER_ID, userId);
-            localStorage.setItem(CONFIG.LS_KEYS.USER_PASS, passphrase);
             localStorage.setItem('gist_private_key', privateKey);
+            localStorage.setItem('gist_passphrase_hash', passphraseHash);
             
+            // Set session state
             this.userId = userId;
-            this.profileId = authData.user.id;
+            this.profileId = profile.id; // Store the profiles.id (UUID)
             
-            console.log("🟢 Registration successful");
-            return { userId, publicKey, privateKey };
+            console.log("🟢 Device registration successful");
+            return { 
+                userId, 
+                publicKey, 
+                privateKey,
+                profileId: profile.id
+            };
         } catch (error) {
             console.error("🔴 Registration failed:", error);
             throw error;
         }
     },
     
+    // ✅ DEVICE-BASED LOGIN (No Supabase Auth)
     async login(userId, passphrase) {
         console.log("🔵 DB.login called with:", userId);
         try {
-            const email = `${userId}@gist.local`;
-            
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: passphrase
-            });
-            
-            if (error) throw error;
-            
-            const {  profile } = await supabaseClient
+            // Fetch public profile from server
+            const {  profile, error } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('user_id', userId)
                 .single();
             
-            if (!profile) throw new Error("Profile not found");
+            if (error || !profile) {
+                throw new Error("Profile not found. Please register first.");
+            }
             
-            // ✅ Check if private key exists
-            let privateKey = localStorage.getItem('gist_private_key');
+            // ✅ Get PRIVATE key from LOCAL storage (never from server)
+            const privateKey = localStorage.getItem('gist_private_key');
+            const storedHash = localStorage.getItem('gist_passphrase_hash');
             
             if (!privateKey) {
                 console.warn("⚠️ No private key found - new device or cleared storage");
-                throw new Error("Private key not found. Please re-register or import your key.");
+                throw new Error("Private key not found on this device. This device has never logged in before, or keys were cleared.");
             }
             
-            this.userId = userId;
-            this.profileId = data.user.id;
+            // ✅ Verify passphrase LOCALLY (never sent to server)
+            const inputHash = await this.hashPassphrase(passphrase);
+            if (inputHash !== storedHash) {
+                throw new Error("Incorrect passphrase");
+            }
             
-            console.log("🟢 Login successful");
-            return { userId, privateKey };
+            // ✅ Challenge-Response: Sign a test message to prove we have the private key
+            const challenge = `auth_challenge_${Date.now()}`;
+            const signature = await CryptoModule.sign(challenge, await CryptoModule.importPrivateKey(privateKey));
+            const publicKey = await CryptoModule.importPublicKey(profile.public_key);
+            const isValid = await CryptoModule.verify(challenge, signature, publicKey);
+            
+            if (!isValid) {
+                throw new Error("Key verification failed - possible tampering");
+            }
+            
+            // Set session state
+            this.userId = userId;
+            this.profileId = profile.id;
+            
+            console.log("🟢 Device login successful");
+            return { 
+                userId, 
+                privateKey,
+                profileId: profile.id
+            };
         } catch (error) {
             console.error("🔴 Login failed:", error);
             throw error;
         }
     },
     
+    // ✅ LOGOUT - Clear session but KEEP keys
     async logout() {
         console.log("🔵 DB.logout called");
         try {
-            await supabaseClient.auth.signOut();
-            
-            // ✅ Preserve keys, clear only session data
+            // ✅ Preserve keys, clear only session state
             const privateKey = localStorage.getItem('gist_private_key');
             const userId = localStorage.getItem(CONFIG.LS_KEYS.USER_ID);
-            const userPass = localStorage.getItem(CONFIG.LS_KEYS.USER_PASS);
+            const passphraseHash = localStorage.getItem('gist_passphrase_hash');
             
+            // Clear session data only
             localStorage.clear();
             
+            // Restore keys for next login
             if (privateKey) localStorage.setItem('gist_private_key', privateKey);
             if (userId) localStorage.setItem(CONFIG.LS_KEYS.USER_ID, userId);
-            if (userPass) localStorage.setItem(CONFIG.LS_KEYS.USER_PASS, userPass);
+            if (passphraseHash) localStorage.setItem('gist_passphrase_hash', passphraseHash);
             
+            // Clear session state
             this.userId = null;
             this.profileId = null;
             
@@ -180,11 +203,12 @@ const DB = {
         }
     },
     
+    // Search user by ID (unchanged)
     async searchUser(searchId) {
         try {
             const { data, error } = await supabaseClient
                 .from('profiles')
-                .select('user_id, public_key, created_at')
+                .select('id, user_id, public_key, created_at')
                 .eq('user_id', searchId.toUpperCase())
                 .single();
             
@@ -196,7 +220,7 @@ const DB = {
         }
     },
     
-    // ✅ FIXED: createRoom() function
+    // ✅ UPDATED: createRoom uses profileId (not auth user ID)
     async createRoom(type, participantIds) {
         console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
         try {
@@ -211,12 +235,11 @@ const DB = {
             // Step 1: Create the room
             console.log("Creating room with type:", type);
             
-            // ✅ FIX: Supabase returns { data, error } NOT { room, error }
             const {  room, error: roomError } = await supabaseClient
                 .from('rooms')
                 .insert({ type: type })
                 .select()
-                .single(); // ✅ Use .single() for inserts (always returns 1 row)
+                .single();
             
             console.log("Room insert result:", { room, roomError });
             
@@ -225,7 +248,6 @@ const DB = {
                 throw new Error("Failed to create room: " + roomError.message);
             }
             
-            // ✅ FIX: Check 'room' (not 'data') because we destructured it above
             if (!room || !room.id) {
                 console.error("❌ No room returned from database");
                 throw new Error("Database did not return room data. Check RLS policies.");
@@ -234,12 +256,13 @@ const DB = {
             console.log("🟢 Room created:", room.id);
             
             // Step 2: Add participants
+            // ✅ Use profile IDs (UUIDs from profiles table), not auth user IDs
             const allParticipantIds = [this.profileId, ...participantIds];
             console.log("Adding participants:", allParticipantIds);
             
             const participants = allParticipantIds.map(id => ({
                 room_id: room.id,
-                user_id: id
+                user_id: id  // This is now profiles.id (UUID)
             }));
             
             const { error: partError } = await supabaseClient
@@ -248,14 +271,14 @@ const DB = {
             
             if (partError) {
                 console.error("❌ Participant error:", partError);
-                // Try to clean up: delete the room if participants failed
+                // Clean up: delete room if participants failed
                 await supabaseClient.from('rooms').delete().eq('id', room.id);
                 throw new Error("Failed to add participants: " + partError.message);
             }
             
             console.log("🟢 Participants added successfully");
             
-            // ✅ Return the complete room object
+            // Return the complete room object
             return room;
             
         } catch (error) {
@@ -264,13 +287,14 @@ const DB = {
         }
     },
     
+    // sendMessage (unchanged, but uses profileId)
     async sendMessage(roomId, content, iv, salt) {
         try {
             const { data, error } = await supabaseClient
                 .from('messages')
                 .insert({
                     room_id: roomId,
-                    sender_id: this.profileId,
+                    sender_id: this.profileId, // ✅ Now uses profileId (UUID)
                     content: content,
                     iv: iv,
                     salt: salt,
@@ -287,6 +311,7 @@ const DB = {
         }
     },
     
+    // getMessages (unchanged)
     async getMessages(roomId, lastSyncAt = null) {
         try {
             let query = supabaseClient
@@ -315,6 +340,7 @@ const DB = {
         }
     },
     
+    // deleteMessage (unchanged)
     async deleteMessage(messageId) {
         try {
             const { error } = await supabaseClient
@@ -329,6 +355,7 @@ const DB = {
         }
     },
     
+    // subscribeToRoom (unchanged)
     subscribeToRoom(roomId, callback) {
         return supabaseClient
             .channel(`room:${roomId}`)
@@ -344,6 +371,7 @@ const DB = {
             .subscribe();
     },
     
+    // LocalStorage cache helpers (unchanged)
     saveMessagesCache(roomId, messages) {
         const key = CONFIG.LS_KEYS.MESSAGES_CACHE + roomId;
         localStorage.setItem(key, JSON.stringify({
@@ -370,5 +398,5 @@ const DB = {
     }
 };
 
-console.log("🟢 DB object created successfully!");
+console.log("🟢 DB object created successfully (Device Auth Mode)!");
 console.log("🟢 DB methods:", Object.keys(DB).join(', '));
