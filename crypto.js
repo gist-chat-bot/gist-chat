@@ -1,4 +1,4 @@
-// crypto.js
+// crypto.js - Device-Based Authentication Ready
 
 const CryptoModule = {
     
@@ -60,7 +60,7 @@ const CryptoModule = {
                 hash: "SHA-256"
             },
             true,
-            ["encrypt", "decrypt"]
+            ["encrypt", "decrypt", "sign", "verify"] // ✅ Added sign/verify usage
         );
     },
 
@@ -74,7 +74,7 @@ const CryptoModule = {
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return await window.crypto.subtle.importKey(
-            "spki", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
+            "spki", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt", "verify"]
         );
     },
 
@@ -88,8 +88,37 @@ const CryptoModule = {
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return await window.crypto.subtle.importKey(
-            "pkcs8", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt"]
+            "pkcs8", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt", "sign"]
         );
+    },
+
+    // ✅ NEW: Sign a message with private key (for authentication)
+    async sign(message, privateKey) {
+        const enc = new TextEncoder();
+        const signature = await window.crypto.subtle.sign(
+            { name: "RSA-PSS", saltLength: 32 },
+            privateKey,
+            enc.encode(message)
+        );
+        return this.arrayBufferToBase64(signature);
+    },
+
+    // ✅ NEW: Verify a signature with public key (for authentication)
+    async verify(message, signatureBase64, publicKey) {
+        try {
+            const enc = new TextEncoder();
+            const signature = this.base64ToArrayBuffer(signatureBase64);
+            const isValid = await window.crypto.subtle.verify(
+                { name: "RSA-PSS", saltLength: 32 },
+                publicKey,
+                signature,
+                enc.encode(message)
+            );
+            return isValid;
+        } catch (error) {
+            console.error("Signature verification failed:", error);
+            return false;
+        }
     },
 
     // --- Utilities ---
@@ -113,4 +142,4 @@ const CryptoModule = {
     }
 };
 
-console.log("CryptoModule Loaded");
+console.log("✅ CryptoModule Loaded (Device Auth Ready)");
