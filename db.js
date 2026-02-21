@@ -39,35 +39,53 @@ const DB = {
     userId: null,
     profileId: null,
     
-    async register(userId, passphrase) {
+        async register(userId, passphrase) {
         console.log("🔵 DB.register called with:", userId);
         try {
             if (!/^[A-Z][0-9]+$/.test(userId)) {
                 throw new Error("ID must be Letter+Number (e.g. A1)");
             }
             
+            // Check if user already exists in profiles
             const {  existing } = await supabaseClient
                 .from('profiles')
                 .select('id')
                 .eq('user_id', userId)
-                .single();
+                .maybeSingle();
             
             if (existing) {
-                throw new Error("ID already taken");
+                throw new Error("User already registered");
             }
             
+            // Generate RSA keys
             const keyPair = await CryptoModule.generateKeyPair();
             const publicKey = await CryptoModule.exportPublicKey(keyPair.publicKey);
             const privateKey = await CryptoModule.exportPrivateKey(keyPair.privateKey);
             
+            // Sign up with Supabase Auth
             const email = `${userId}@gist.local`;
             const {  authData, error: authError } = await supabaseClient.auth.signUp({
                 email: email,
                 password: passphrase
             });
             
-            if (authError) throw authError;
+            // ✅ Check for auth errors FIRST
+            if (authError) {
+                console.error("❌ Auth error:", authError);
+                // Check if user already exists
+                if (authError.message.includes('User already registered')) {
+                    throw new Error("User already registered. Please login instead.");
+                }
+                throw authError;
+            }
             
+            // ✅ Check if authData is valid
+            if (!authData || !authData.user) {
+                console.error("❌ No auth data returned:", authData);
+                throw new Error("Registration failed - no user data returned");
+            }
+            
+            // Insert profile
             const { error: profileError } = await supabaseClient
                 .from('profiles')
                 .insert({
@@ -76,8 +94,12 @@ const DB = {
                     public_key: publicKey
                 });
             
-            if (profileError) throw profileError;
+            if (profileError) {
+                console.error("❌ Profile error:", profileError);
+                throw new Error("Failed to create profile: " + profileError.message);
+            }
             
+            // Save locally
             localStorage.setItem(CONFIG.LS_KEYS.USER_ID, userId);
             localStorage.setItem(CONFIG.LS_KEYS.USER_PASS, passphrase);
             localStorage.setItem('gist_private_key', privateKey);
