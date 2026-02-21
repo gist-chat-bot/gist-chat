@@ -174,19 +174,24 @@ const DB = {
         }
     },
     
-        async createRoom(type, participantIds) {
+    async createRoom(type, participantIds) {
         console.log("🔵 DB.createRoom called:", type, participantIds);
         try {
             // Create room
             const {  room, error: roomError } = await supabaseClient
                 .from('rooms')
-                .insert({ type })
+                .insert({ type: type })
                 .select()
                 .single();
             
             if (roomError) {
-                console.error("Room creation error:", roomError);
-                throw roomError;
+                console.error("❌ Room creation error:", roomError);
+                throw new Error("Failed to create room: " + roomError.message);
+            }
+            
+            if (!room) {
+                console.error("❌ No room returned from database");
+                throw new Error("Database did not return room data");
             }
             
             console.log("🟢 Room created:", room.id);
@@ -205,11 +210,13 @@ const DB = {
                 .insert(participants);
             
             if (partError) {
-                console.error("Participant error:", partError);
-                throw partError;
+                console.error("❌ Participant error:", partError);
+                throw new Error("Failed to add participants: " + partError.message);
             }
             
             console.log("🟢 Participants added successfully");
+            
+            // ✅ Make sure we return the room
             return room;
         } catch (error) {
             console.error("🔴 Create room failed:", error);
