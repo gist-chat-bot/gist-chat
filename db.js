@@ -1,4 +1,4 @@
-// db.js - Supabase Database Layer (FINAL FIXED)
+// db.js - Supabase Database Layer (CORRECTED)
 console.log("🚀 db.js: Starting to load...");
 
 // Check dependencies
@@ -174,6 +174,7 @@ const DB = {
         }
     },
     
+    // ✅ FIXED: createRoom() function
     async createRoom(type, participantIds) {
         console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
         try {
@@ -187,11 +188,13 @@ const DB = {
             
             // Step 1: Create the room
             console.log("Creating room with type:", type);
+            
+            // ✅ FIX: Supabase returns { data, error } NOT { room, error }
             const {  room, error: roomError } = await supabaseClient
                 .from('rooms')
                 .insert({ type: type })
                 .select()
-                .maybeSingle(); // Use maybeSingle() to avoid error if no rows
+                .single(); // ✅ Use .single() for inserts (always returns 1 row)
             
             console.log("Room insert result:", { room, roomError });
             
@@ -200,6 +203,7 @@ const DB = {
                 throw new Error("Failed to create room: " + roomError.message);
             }
             
+            // ✅ FIX: Check 'room' (not 'data') because we destructured it above
             if (!room || !room.id) {
                 console.error("❌ No room returned from database");
                 throw new Error("Database did not return room data. Check RLS policies.");
