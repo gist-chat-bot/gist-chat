@@ -1,4 +1,4 @@
-// crypto.js - Device-Based Authentication Ready
+// crypto.js - Fixed for RSA-OAEP (Encryption Only)
 
 const CryptoModule = {
     
@@ -50,6 +50,7 @@ const CryptoModule = {
     },
 
     // --- RSA Functions (Identity/Handshake) ---
+    // ✅ FIXED: RSA-OAEP is for encryption ONLY, not signing
 
     async generateKeyPair() {
         return await window.crypto.subtle.generateKey(
@@ -60,7 +61,7 @@ const CryptoModule = {
                 hash: "SHA-256"
             },
             true,
-            ["encrypt", "decrypt", "sign", "verify"] // ✅ Added sign/verify usage
+            ["encrypt", "decrypt"] // ✅ RSA-OAEP: encrypt/decrypt ONLY
         );
     },
 
@@ -74,7 +75,7 @@ const CryptoModule = {
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return await window.crypto.subtle.importKey(
-            "spki", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt", "verify"]
+            "spki", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"] // ✅ encrypt ONLY
         );
     },
 
@@ -88,37 +89,8 @@ const CryptoModule = {
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return await window.crypto.subtle.importKey(
-            "pkcs8", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt", "sign"]
+            "pkcs8", bytes, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt"] // ✅ decrypt ONLY
         );
-    },
-
-    // ✅ NEW: Sign a message with private key (for authentication)
-    async sign(message, privateKey) {
-        const enc = new TextEncoder();
-        const signature = await window.crypto.subtle.sign(
-            { name: "RSA-PSS", saltLength: 32 },
-            privateKey,
-            enc.encode(message)
-        );
-        return this.arrayBufferToBase64(signature);
-    },
-
-    // ✅ NEW: Verify a signature with public key (for authentication)
-    async verify(message, signatureBase64, publicKey) {
-        try {
-            const enc = new TextEncoder();
-            const signature = this.base64ToArrayBuffer(signatureBase64);
-            const isValid = await window.crypto.subtle.verify(
-                { name: "RSA-PSS", saltLength: 32 },
-                publicKey,
-                signature,
-                enc.encode(message)
-            );
-            return isValid;
-        } catch (error) {
-            console.error("Signature verification failed:", error);
-            return false;
-        }
     },
 
     // --- Utilities ---
@@ -142,4 +114,4 @@ const CryptoModule = {
     }
 };
 
-console.log("✅ CryptoModule Loaded (Device Auth Ready)");
+console.log("✅ CryptoModule Loaded (RSA-OAEP Fixed)");
