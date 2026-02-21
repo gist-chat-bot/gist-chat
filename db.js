@@ -1,4 +1,4 @@
-// db.js - Supabase Database Layer (FIXED)
+// db.js - Supabase Database Layer (FINAL FIXED)
 console.log("🚀 db.js: Starting to load...");
 
 // Check dependencies
@@ -46,7 +46,7 @@ const DB = {
                 throw new Error("ID must be Letter+Number (e.g. A1)");
             }
             
-            const { data: existing } = await supabaseClient
+            const {  existing } = await supabaseClient
                 .from('profiles')
                 .select('id')
                 .eq('user_id', userId)
@@ -61,7 +61,7 @@ const DB = {
             const privateKey = await CryptoModule.exportPrivateKey(keyPair.privateKey);
             
             const email = `${userId}@gist.local`;
-            const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+            const {  authData, error: authError } = await supabaseClient.auth.signUp({
                 email: email,
                 password: passphrase
             });
@@ -105,7 +105,7 @@ const DB = {
             
             if (error) throw error;
             
-            const { data: profile } = await supabaseClient
+            const {  profile } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('user_id', userId)
@@ -175,35 +175,46 @@ const DB = {
     },
     
     async createRoom(type, participantIds) {
-        console.log("🔵 DB.createRoom called:", type, participantIds);
+        console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
         try {
-            // Create room
+            // Validate inputs
+            if (!this.profileId) {
+                throw new Error("User not authenticated - profileId is null");
+            }
+            if (!type || !['1v1', 'gc'].includes(type)) {
+                throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
+            }
+            
+            // Step 1: Create the room
+            console.log("Creating room with type:", type);
             const {  room, error: roomError } = await supabaseClient
                 .from('rooms')
                 .insert({ type: type })
                 .select()
-                .single();
+                .maybeSingle(); // Use maybeSingle() to avoid error if no rows
+            
+            console.log("Room insert result:", { room, roomError });
             
             if (roomError) {
                 console.error("❌ Room creation error:", roomError);
                 throw new Error("Failed to create room: " + roomError.message);
             }
             
-            if (!room) {
+            if (!room || !room.id) {
                 console.error("❌ No room returned from database");
-                throw new Error("Database did not return room data");
+                throw new Error("Database did not return room data. Check RLS policies.");
             }
             
             console.log("🟢 Room created:", room.id);
             
-            // Add participants (current user + others)
+            // Step 2: Add participants
             const allParticipantIds = [this.profileId, ...participantIds];
+            console.log("Adding participants:", allParticipantIds);
+            
             const participants = allParticipantIds.map(id => ({
                 room_id: room.id,
                 user_id: id
             }));
-            
-            console.log("Adding participants:", participants);
             
             const { error: partError } = await supabaseClient
                 .from('participants')
@@ -211,13 +222,16 @@ const DB = {
             
             if (partError) {
                 console.error("❌ Participant error:", partError);
+                // Try to clean up: delete the room if participants failed
+                await supabaseClient.from('rooms').delete().eq('id', room.id);
                 throw new Error("Failed to add participants: " + partError.message);
             }
             
             console.log("🟢 Participants added successfully");
             
-            // ✅ Make sure we return the room
+            // ✅ Return the complete room object
             return room;
+            
         } catch (error) {
             console.error("🔴 Create room failed:", error);
             throw error;
