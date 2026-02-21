@@ -47,7 +47,7 @@ const DB = {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     },
     
-    // ✅ FIXED: Two-step register (Insert → Then Fetch)
+    // ✅ SIMPLIFIED REGISTER (No SELECT after insert - avoids RLS issue)
     async register(userId, passphrase) {
         console.log("🔵 DB.register called with:", userId);
         try {
@@ -74,9 +74,9 @@ const DB = {
             // Hash passphrase locally
             const passphraseHash = await this.hashPassphrase(passphrase);
             
-            console.log("🔵 Step 1: Inserting profile...");
+            console.log("🔵 Inserting profile...");
             
-            // ✅ STEP 1: Insert only (no select chained)
+            // ✅ INSERT only (we know this works!)
             const { error: insertError } = await supabaseClient
                 .from('profiles')
                 .insert({
@@ -86,48 +86,29 @@ const DB = {
             
             if (insertError) {
                 console.error("❌ Profile insert error:", insertError);
-                // Duplicate key error code
                 if (insertError.code === '23505') {
                     throw new Error("User already registered. Please login instead.");
                 }
                 throw new Error("Failed to create profile: " + insertError.message);
             }
             
-            console.log("🟢 Profile inserted, Step 2: Fetching...");
+            console.log("🟢 Profile inserted successfully!");
             
-            // ✅ STEP 2: Fetch the created profile (separate query)
-            const {  profile, error: selectError } = await supabaseClient
-                .from('profiles')
-                .select('*')
-                .eq('user_id', userId)
-                .single();
-            
-            if (selectError || !profile) {
-                console.error("❌ Profile select error:", selectError);
-                throw new Error("Database did not return profile data");
-            }
-            
-            if (!profile.id) {
-                throw new Error("Profile has no ID");
-            }
-            
-            console.log("🟢 Profile fetched:", profile.id);
-            
-            // Store private data locally
+            // ✅ Store private data locally
             localStorage.setItem(CONFIG.LS_KEYS.USER_ID, userId);
             localStorage.setItem('gist_private_key', privateKey);
             localStorage.setItem('gist_passphrase_hash', passphraseHash);
             
-            // Set session state
+            // ✅ Set session state (use userId as profileId)
             this.userId = userId;
-            this.profileId = profile.id;
+            this.profileId = userId;
             
             console.log("🟢 Device registration successful");
             return { 
                 userId, 
                 publicKey, 
                 privateKey,
-                profileId: profile.id
+                profileId: userId
             };
         } catch (error) {
             console.error("🔴 Registration failed:", error);
@@ -135,9 +116,11 @@ const DB = {
         }
     },
     
+    // ✅ SIMPLIFIED LOGIN (Use userId as profileId)
     async login(userId, passphrase) {
         console.log("🔵 DB.login called with:", userId);
         try {
+            // Fetch public profile from server
             const {  profile, error } = await supabaseClient
                 .from('profiles')
                 .select('*')
@@ -148,6 +131,7 @@ const DB = {
                 throw new Error("Profile not found. Please register first.");
             }
             
+            // Get PRIVATE key from LOCAL storage
             const privateKey = localStorage.getItem('gist_private_key');
             const storedHash = localStorage.getItem('gist_passphrase_hash');
             
@@ -156,16 +140,18 @@ const DB = {
                 throw new Error("Private key not found on this device.");
             }
             
+            // Verify passphrase LOCALLY
             const inputHash = await this.hashPassphrase(passphrase);
             if (inputHash !== storedHash) {
                 throw new Error("Incorrect passphrase");
             }
             
+            // Set session state
             this.userId = userId;
-            this.profileId = profile.id;
+            this.profileId = userId; // Use userId instead of profile.id
             
             console.log("🟢 Device login successful");
-            return { userId, privateKey, profileId: profile.id };
+            return { userId, privateKey, profileId: userId };
         } catch (error) {
             console.error("🔴 Login failed:", error);
             throw error;
@@ -243,6 +229,7 @@ const DB = {
             
             console.log("🟢 Room created:", room.id);
             
+            // ✅ Use profileId (which is now userId) for participants
             const allParticipantIds = [this.profileId, ...participantIds];
             console.log("Adding participants:", allParticipantIds);
             
