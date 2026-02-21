@@ -197,65 +197,74 @@ const DB = {
         }
     },
     
-    async createRoom(type, participantIds) {
-        console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
-        try {
-            if (!this.profileId) {
-                throw new Error("User not authenticated - profileId is null");
-            }
-            if (!type || !['1v1', 'gc'].includes(type)) {
-                throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
-            }
-            
-            console.log("Creating room with type:", type);
-            
-            const {  room, error: roomError } = await supabaseClient
-                .from('rooms')
-                .insert({ type: type })
-                .select()
-                .single();
-            
-            console.log("Room insert result:", { room, roomError });
-            
-            if (roomError) {
-                console.error("❌ Room creation error:", roomError);
-                throw new Error("Failed to create room: " + roomError.message);
-            }
-            
-            if (!room || !room.id) {
-                console.error("❌ No room returned from database");
-                throw new Error("Database did not return room data. Check RLS policies.");
-            }
-            
-            console.log("🟢 Room created:", room.id);
-            
-            // ✅ Use profileId (which is now userId) for participants
-            const allParticipantIds = [this.profileId, ...participantIds];
-            console.log("Adding participants:", allParticipantIds);
-            
-            const participants = allParticipantIds.map(id => ({
-                room_id: room.id,
-                user_id: id
-            }));
-            
-            const { error: partError } = await supabaseClient
-                .from('participants')
-                .insert(participants);
-            
-            if (partError) {
-                console.error("❌ Participant error:", partError);
-                await supabaseClient.from('rooms').delete().eq('id', room.id);
-                throw new Error("Failed to add participants: " + partError.message);
-            }
-            
-            console.log("🟢 Participants added successfully");
-            return room;
-            
-        } catch (error) {
-            console.error("🔴 Create room failed:", error);
-            throw error;
+    // ✅ FIXED: Two-step room creation (Insert → Then Fetch)
+async createRoom(type, participantIds) {
+    console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
+    try {
+        if (!this.profileId) {
+            throw new Error("User not authenticated - profileId is null");
         }
-    },
+        if (!type || !['1v1', 'gc'].includes(type)) {
+            throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
+        }
+        
+        console.log("Creating room with type:", type);
+        
+        // ✅ STEP 1: Insert room (without chaining select)
+        const { error: insertError } = await supabaseClient
+            .from('rooms')
+            .insert({ type: type });
+        
+        if (insertError) {
+            console.error("❌ Room insert error:", insertError);
+            throw new Error("Failed to create room: " + insertError.message);
+        }
+        
+        console.log("🟢 Room inserted, fetching...");
+        
+        // ✅ STEP 2: Fetch the created room (separate query)
+        const {  room, error: selectError } = await supabaseClient
+            .from('rooms')
+            .select('*')
+            .eq('type', type)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+        
+        if (selectError || !room) {
+            console.error("❌ Room select error:", selectError);
+            throw new Error("Database did not return room data");
+        }
+        
+        console.log("🟢 Room created:", room.id);
+        
+        // Step 3: Add participants
+        const allParticipantIds = [this.profileId, ...participantIds];
+        console.log("Adding participants:", allParticipantIds);
+        
+        const participants = allParticipantIds.map(id => ({
+            room_id: room.id,
+            user_id: id
+        }));
+        
+        const { error: partError } = await supabaseClient
+            .from('participants')
+            .insert(participants);
+        
+        if (partError) {
+            console.error("❌ Participant error:", partError);
+            await supabaseClient.from('rooms').delete().eq('id', room.id);
+            throw new Error("Failed to add participants: " + partError.message);
+        }
+        
+        console.log("🟢 Participants added successfully");
+        return room;
+        
+    } catch (error) {
+        console.error("🔴 Create room failed:", error);
+        throw error;
+    }
+},
     
     async sendMessage(roomId, content, iv, salt) {
         try {
