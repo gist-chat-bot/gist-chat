@@ -1,4 +1,4 @@
-// script.js - Main Application Logic
+// script.js - Main Application Logic (Device Auth Mode)
 
 console.log("Loading script.js...");
 
@@ -69,14 +69,14 @@ const UI = {
 
 // --- Initialize App ---
 async function init() {
-    console.log("🚀 Gist v2.0 Initializing...");
+    console.log("🚀 Gist v2.0 Initializing (Device Auth)...");
     
     // Check existing session
     const savedUserId = localStorage.getItem(CONFIG.LS_KEYS.USER_ID);
     const savedPass = localStorage.getItem(CONFIG.LS_KEYS.USER_PASS);
     
     if (savedUserId && savedPass) {
-        // Auto-login
+        // Auto-login with device auth
         AppState.userId = savedUserId;
         AppState.passphrase = savedPass;
         await loadSession();
@@ -368,14 +368,13 @@ async function promptNewSlot(type) {
             return;
         }
         
-        // ✅ FIX 1: Convert 'dm' to '1v1' for database
+        // Convert 'dm' to '1v1' for database
         const room = await DB.createRoom(type === 'dm' ? '1v1' : 'gc', [targetProfile.id]);
         
         // Add to local storage
         const roomData = {
             id: room.id,
             name: targetUserId,
-            // ✅ FIX 2: Convert 'dm' to '1v1' for local storage too
             type: type === 'dm' ? '1v1' : 'gc',
             participantId: targetProfile.id
         };
@@ -420,7 +419,7 @@ function removeSlot(roomId, type, index) {
         UI.chatName.textContent = 'Select a chat';
         UI.chatStatus.textContent = '--';
         UI.messageInput.disabled = true;
-        updateSendButton(0); // Disable send button
+        updateSendButton(0);
     }
     
     renderSlots();
@@ -474,7 +473,7 @@ async function loadRoom(room) {
     UI.chatStatus.textContent = room.type === 'gc' ? 'Group Chat' : 'Direct Message';
     UI.chatAvatar.textContent = (room.name || 'C').charAt(0).toUpperCase();
     UI.messageInput.disabled = false;
-    updateSendButton(0); // ✅ Enable send button
+    updateSendButton(0);
     
     // Clear message list
     UI.messageList.innerHTML = '<div class="system-msg">Loading messages...</div>';
@@ -530,7 +529,6 @@ function handleRealtimeMessage(payload) {
     const { eventType, new: newRecord, old: oldRecord } = payload;
     
     if (eventType === 'INSERT' && newRecord.room_id === AppState.currentRoomId) {
-        // New message received
         const message = {
             id: newRecord.id,
             content: newRecord.content,
@@ -547,7 +545,6 @@ function handleRealtimeMessage(payload) {
     }
     
     if (eventType === 'UPDATE' && newRecord.is_deleted) {
-        // Message deleted
         const msgElement = document.querySelector(`[data-message-id="${newRecord.id}"]`);
         if (msgElement) {
             msgElement.remove();
@@ -602,7 +599,7 @@ function createMessageElement(msg) {
         }
     });
     
-    // Delete button
+    // Delete button - COMPLETED VERSION
     const deleteBtn = el.querySelector('.message-delete');
     if (deleteBtn) {
         deleteBtn.addEventListener('click', async (e) => {
@@ -701,7 +698,6 @@ function updateCooldownVisual() {
 }
 
 function updateSendButton(remainingSeconds) {
-    // ✅ Only enable if in a chat AND cooldown is done
     const canSend = AppState.currentRoomId && remainingSeconds <= 0;
     
     UI.sendBtn.disabled = !canSend;
@@ -793,4 +789,4 @@ if (document.readyState === 'loading') {
     init();
 }
 
-console.log("✅ script.js Loaded");
+console.log("✅ script.js Loaded (Device Auth Mode)");
