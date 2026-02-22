@@ -197,7 +197,7 @@ const DB = {
         }
     },
     
-    async createRoom(type, participantIds) {
+   async createRoom(type, participantIds) {
     console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
     try {
         if (!this.profileId) {
@@ -207,48 +207,34 @@ const DB = {
             throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
         }
         
-        console.log("Step 1: Creating room with type:", type);
+        console.log("Creating room with type:", type);
         
-        // ✅ STEP 1: Insert room and get the ID
-        const { data: insertedRoom, error: insertError } = await supabaseClient
+        // ✅ Simple insert with RETURNING clause
+        const {  room, error } = await supabaseClient
             .from('rooms')
             .insert({ type: type })
-            .select('id')  // Only select the ID
-            .single();
+            .select()
+            .limit(1);  // Use limit instead of single()
         
-        if (insertError) {
-            console.error("❌ Room insert error:", insertError);
-            throw new Error("Failed to create room: " + insertError.message);
+        if (error) {
+            console.error("❌ Room creation error:", error);
+            throw new Error("Failed to create room: " + error.message);
         }
         
-        if (!insertedRoom || !insertedRoom.id) {
-            console.error("❌ No room ID returned");
-            throw new Error("Database did not return room ID");
-        }
-        
-        const roomId = insertedRoom.id;
-        console.log("🟢 Room created with ID:", roomId);
-        
-        // ✅ STEP 2: Fetch full room data by ID
-        const {  fullRoom, error: fetchError } = await supabaseClient
-            .from('rooms')
-            .select('*')
-            .eq('id', roomId)
-            .single();
-        
-        if (fetchError || !fullRoom) {
-            console.error("❌ Room fetch error:", fetchError);
+        if (!room || room.length === 0) {
+            console.error("❌ No room returned");
             throw new Error("Database did not return room data");
         }
         
-        console.log("🟢 Full room data fetched:", fullRoom);
+        const createdRoom = room[0];
+        console.log("🟢 Room created:", createdRoom.id);
         
-        // Step 3: Add participants
+        // Add participants
         const allParticipantIds = [this.profileId, ...participantIds];
-        console.log("Step 3: Adding participants:", allParticipantIds);
+        console.log("Adding participants:", allParticipantIds);
         
         const participants = allParticipantIds.map(id => ({
-            room_id: roomId,
+            room_id: createdRoom.id,
             user_id: id
         }));
         
@@ -258,19 +244,18 @@ const DB = {
         
         if (partError) {
             console.error("❌ Participant error:", partError);
-            // Clean up: delete the room
-            await supabaseClient.from('rooms').delete().eq('id', roomId);
+            await supabaseClient.from('rooms').delete().eq('id', createdRoom.id);
             throw new Error("Failed to add participants: " + partError.message);
         }
         
         console.log("🟢 Participants added successfully");
-        return fullRoom;
+        return createdRoom;
         
     } catch (error) {
         console.error("🔴 Create room failed:", error);
         throw error;
     }
-},
+}, 
     
     async sendMessage(roomId, content, iv, salt) {
         try {
