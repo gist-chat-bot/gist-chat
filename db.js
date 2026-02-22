@@ -1,4 +1,4 @@
-// db.js - Supabase Database Layer (DEVICE AUTH - NO SUPABASE AUTH)
+// db.js - Supabase Database Layer (DEVICE AUTH - USES UUIDs)
 console.log("🚀 db.js: Starting to load (Device Auth Mode)...");
 
 // Check dependencies
@@ -37,7 +37,7 @@ try {
 // DB Object - Device-Based Authentication
 const DB = {
     userId: null,
-    profileId: null,
+    profileId: null, // Now stores the ACTUAL UUID from profiles.id
     
     async hashPassphrase(passphrase) {
         const encoder = new TextEncoder();
@@ -47,7 +47,7 @@ const DB = {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     },
     
-    // ✅ SIMPLIFIED REGISTER (No SELECT after insert - avoids RLS issue)
+    // ✅ FIXED: Fetch profile UUID after insert
     async register(userId, passphrase) {
         console.log("🔵 DB.register called with:", userId);
         try {
@@ -76,7 +76,7 @@ const DB = {
             
             console.log("🔵 Inserting profile...");
             
-            // ✅ INSERT only (we know this works!)
+            // INSERT profile
             const { error: insertError } = await supabaseClient
                 .from('profiles')
                 .insert({
@@ -92,23 +92,38 @@ const DB = {
                 throw new Error("Failed to create profile: " + insertError.message);
             }
             
-            console.log("🟢 Profile inserted successfully!");
+            console.log("🟢 Profile inserted, fetching UUID...");
             
-            // ✅ Store private data locally
+            // ✅ FETCH the created profile to get the UUID
+            const {  profile, error: fetchError } = await supabaseClient
+                .from('profiles')
+                .select('id')
+                .eq('user_id', userId)
+                .single();
+            
+            if (fetchError || !profile || !profile.id) {
+                console.error("❌ Failed to fetch profile UUID:", fetchError);
+                throw new Error("Could not retrieve profile UUID");
+            }
+            
+            const profileUuid = profile.id;
+            console.log("🟢 Profile UUID:", profileUuid);
+            
+            // Store private data locally
             localStorage.setItem(CONFIG.LS_KEYS.USER_ID, userId);
             localStorage.setItem('gist_private_key', privateKey);
             localStorage.setItem('gist_passphrase_hash', passphraseHash);
             
-            // ✅ Set session state (use userId as profileId)
+            // ✅ Set session state with ACTUAL UUID
             this.userId = userId;
-            this.profileId = userId;
+            this.profileId = profileUuid;
             
             console.log("🟢 Device registration successful");
             return { 
                 userId, 
                 publicKey, 
                 privateKey,
-                profileId: userId
+                profileId: profileUuid
             };
         } catch (error) {
             console.error("🔴 Registration failed:", error);
@@ -116,14 +131,14 @@ const DB = {
         }
     },
     
-    // ✅ SIMPLIFIED LOGIN (Use userId as profileId)
+    // ✅ FIXED: Fetch and use profile UUID
     async login(userId, passphrase) {
         console.log("🔵 DB.login called with:", userId);
         try {
             // Fetch public profile from server
             const {  profile, error } = await supabaseClient
                 .from('profiles')
-                .select('*')
+                .select('id, user_id, public_key')
                 .eq('user_id', userId)
                 .single();
             
@@ -146,12 +161,12 @@ const DB = {
                 throw new Error("Incorrect passphrase");
             }
             
-            // Set session state
+            // ✅ Set session state with ACTUAL UUID
             this.userId = userId;
-            this.profileId = userId; // Use userId instead of profile.id
+            this.profileId = profile.id; // Use the UUID, not userId string
             
-            console.log("🟢 Device login successful");
-            return { userId, privateKey, profileId: userId };
+            console.log("🟢 Device login successful, profileId:", profile.id);
+            return { userId, privateKey, profileId: profile.id };
         } catch (error) {
             console.error("🔴 Login failed:", error);
             throw error;
@@ -197,80 +212,80 @@ const DB = {
         }
     },
     
+    // ✅ createRoom now uses UUIDs correctly
     async createRoom(type, participantIds) {
-    console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
-    try {
-        if (!this.profileId) {
-            throw new Error("User not authenticated - profileId is null");
+        console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
+        try {
+            if (!this.profileId) {
+                throw new Error("User not authenticated - profileId is null");
+            }
+            if (!type || !['1v1', 'gc'].includes(type)) {
+                throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
+            }
+            
+            console.log("Step 1: Creating room with type:", type);
+            
+            // Insert room and get the ID
+            const { data: insertedRoom, error: insertError } = await supabaseClient
+                .from('rooms')
+                .insert({ type: type })
+                .select('id')
+                .single();
+            
+            if (insertError) {
+                console.error("❌ Room insert error:", insertError);
+                throw new Error("Failed to create room: " + insertError.message);
+            }
+            
+            if (!insertedRoom || !insertedRoom.id) {
+                console.error("❌ No room ID returned");
+                throw new Error("Database did not return room ID");
+            }
+            
+            const roomId = insertedRoom.id;
+            console.log("🟢 Room created with ID:", roomId);
+            
+            // Fetch full room data by ID
+            const {  fullRoom, error: fetchError } = await supabaseClient
+                .from('rooms')
+                .select('*')
+                .eq('id', roomId)
+                .single();
+            
+            if (fetchError || !fullRoom) {
+                console.error("❌ Room fetch error:", fetchError);
+                throw new Error("Database did not return room data");
+            }
+            
+            console.log("🟢 Full room data fetched:", fullRoom);
+            
+            // Add participants - NOW USING UUIDs!
+            const allParticipantIds = [this.profileId, ...participantIds];
+            console.log("Step 3: Adding participants (UUIDs):", allParticipantIds);
+            
+            const participants = allParticipantIds.map(id => ({
+                room_id: roomId,
+                user_id: id  // These are now UUIDs, not userId strings!
+            }));
+            
+            const { error: partError } = await supabaseClient
+                .from('participants')
+                .insert(participants);
+            
+            if (partError) {
+                console.error("❌ Participant error:", partError);
+                await supabaseClient.from('rooms').delete().eq('id', roomId);
+                throw new Error("Failed to add participants: " + partError.message);
+            }
+            
+            console.log("🟢 Participants added successfully");
+            return fullRoom;
+            
+        } catch (error) {
+            console.error("🔴 Create room failed:", error);
+            throw error;
         }
-        if (!type || !['1v1', 'gc'].includes(type)) {
-            throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
-        }
-        
-        console.log("Step 1: Creating room with type:", type);
-        
-        // ✅ STEP 1: Insert room and get the ID
-        const { data: insertedRoom, error: insertError } = await supabaseClient
-            .from('rooms')
-            .insert({ type: type })
-            .select('id')  // Only select the ID
-            .single();
-        
-        if (insertError) {
-            console.error("❌ Room insert error:", insertError);
-            throw new Error("Failed to create room: " + insertError.message);
-        }
-        
-        if (!insertedRoom || !insertedRoom.id) {
-            console.error("❌ No room ID returned");
-            throw new Error("Database did not return room ID");
-        }
-        
-        const roomId = insertedRoom.id;
-        console.log("🟢 Room created with ID:", roomId);
-        
-        // ✅ STEP 2: Fetch full room data by ID
-        const {  fullRoom, error: fetchError } = await supabaseClient
-            .from('rooms')
-            .select('*')
-            .eq('id', roomId)
-            .single();
-        
-        if (fetchError || !fullRoom) {
-            console.error("❌ Room fetch error:", fetchError);
-            throw new Error("Database did not return room data");
-        }
-        
-        console.log("🟢 Full room data fetched:", fullRoom);
-        
-        // Step 3: Add participants
-        const allParticipantIds = [this.profileId, ...participantIds];
-        console.log("Step 3: Adding participants:", allParticipantIds);
-        
-        const participants = allParticipantIds.map(id => ({
-            room_id: roomId,
-            user_id: id
-        }));
-        
-        const { error: partError } = await supabaseClient
-            .from('participants')
-            .insert(participants);
-        
-        if (partError) {
-            console.error("❌ Participant error:", partError);
-            // Clean up: delete the room
-            await supabaseClient.from('rooms').delete().eq('id', roomId);
-            throw new Error("Failed to add participants: " + partError.message);
-        }
-        
-        console.log("🟢 Participants added successfully");
-        return fullRoom;
-        
-    } catch (error) {
-        console.error("🔴 Create room failed:", error);
-        throw error;
-    }
-},
+    },
     
     async sendMessage(roomId, content, iv, salt) {
         try {
@@ -278,7 +293,7 @@ const DB = {
                 .from('messages')
                 .insert({
                     room_id: roomId,
-                    sender_id: this.profileId,
+                    sender_id: this.profileId, // Now uses UUID
                     content: content,
                     iv: iv,
                     salt: salt,
