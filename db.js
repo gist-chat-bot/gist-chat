@@ -196,8 +196,8 @@ const DB = {
             return null;
         }
     },
-    
-   async createRoom(type, participantIds) {
+
+    async createRoom(type, participantIds) {
     console.log("🔵 DB.createRoom called:", { type, participantIds, profileId: this.profileId });
     try {
         if (!this.profileId) {
@@ -207,31 +207,47 @@ const DB = {
             throw new Error(`Invalid room type: ${type}. Must be '1v1' or 'gc'`);
         }
         
-        console.log("Creating room with type:", type);
+        console.log("Step 1: Inserting room...");
         
-        // ✅ Simple insert with RETURNING clause
-        const {  room, error } = await supabaseClient
+        // ✅ Insert room
+        const { data, error: insertError } = await supabaseClient
             .from('rooms')
-            .insert({ type: type })
-            .select()
-            .limit(1);  // Use limit instead of single()
+            .insert({ type: type });
         
-        if (error) {
-            console.error("❌ Room creation error:", error);
-            throw new Error("Failed to create room: " + error.message);
+        if (insertError) {
+            console.error("❌ Room insert error:", insertError);
+            throw new Error("Failed to create room: " + insertError.message);
         }
         
-        if (!room || room.length === 0) {
-            console.error("❌ No room returned");
+        console.log("🟢 Room inserted, fetching...");
+        
+        // ✅ Fetch the most recently created room
+        const {  rooms, error: fetchError } = await supabaseClient
+            .from('rooms')
+            .select('*')
+            .eq('type', type)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        
+        console.log("🔍 Fetch result:", { rooms, fetchError });
+        
+        if (fetchError) {
+            console.error("❌ Fetch error:", fetchError);
+            throw new Error("Failed to fetch room: " + fetchError.message);
+        }
+        
+        if (!rooms || rooms.length === 0) {
+            console.error("❌ No rooms found in database");
             throw new Error("Database did not return room data");
         }
         
-        const createdRoom = room[0];
-        console.log("🟢 Room created:", createdRoom.id);
+        const createdRoom = rooms[0];
+        console.log("🟢 Room fetched successfully:", createdRoom);
         
         // Add participants
+        console.log("Step 2: Adding participants...");
         const allParticipantIds = [this.profileId, ...participantIds];
-        console.log("Adding participants:", allParticipantIds);
+        console.log("Participants:", allParticipantIds);
         
         const participants = allParticipantIds.map(id => ({
             room_id: createdRoom.id,
@@ -248,14 +264,14 @@ const DB = {
             throw new Error("Failed to add participants: " + partError.message);
         }
         
-        console.log("🟢 Participants added successfully");
+        console.log("🟢 Success! Room created:", createdRoom.id);
         return createdRoom;
         
     } catch (error) {
         console.error("🔴 Create room failed:", error);
         throw error;
     }
-}, 
+},
     
     async sendMessage(roomId, content, iv, salt) {
         try {
